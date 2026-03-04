@@ -116,6 +116,24 @@ const FD = {
   NEUTRAL: { name: "Neutral", short: "NEU", color: "#2a3d50", flag: "âšª", atk: 0.8, def: 0.85, nukes: 0, income: 0, desc: "", starts: {} },
 };
 
+const GAME_CONFIG = {
+  AI_ATTACK_RATIO: 0.62,
+  AI_STRATEGIC_BONUS: 28,
+  AI_NEUTRAL_BONUS: 20,
+  AI_PLAYER_FACTION_BONUS: 25,
+  AI_WEAK_DEFENDER_BONUS: 28,
+  AI_SURROUND_BONUS: 10,
+  AI_EXPOSED_PENALTY: 3,
+  AI_MIN_TROOPS_CONSIDER: 18,
+  AI_MIN_TROOPS_MOVE: 22,
+  PLAYER_REINFORCE_RATIO: 0.42,
+  PLAYER_ATTACK_RATIO: 0.65,
+  MIN_TROOPS_TO_SELECT: 20,
+  NUKE_SURVIVOR_RATIO: 0.07,
+  NUKE_TENSION_INC: 22,
+  WIN_TENSION_INC: 4
+};
+
 function initGame() {
   const rs = {};
   REGIONS.forEach(r => { rs[r.id] = { faction: "NEUTRAL", troops: Math.floor(Math.random() * 18) + 6, bombed: false }; });
@@ -135,16 +153,16 @@ function doCombat(a, d, ab, db) {
 
 function aiScore(fromId, toId, fromD, toD, aiKey, state, pf) {
   let s = 0;
-  const atk = Math.floor(fromD.troops * 0.62);
+  const atk = Math.floor(fromD.troops * GAME_CONFIG.AI_ATTACK_RATIO);
   s += (atk / Math.max(1, toD.troops)) * 22;
   const reg = REGIONS.find(r => r.id === toId);
-  if (reg?.strategic) s += 28;
-  if (toD.faction === "NEUTRAL") s += 20;
-  if (toD.faction === pf) { s += 25; if (toD.troops < 50) s += 28; }
+  if (reg?.strategic) s += GAME_CONFIG.AI_STRATEGIC_BONUS;
+  if (toD.faction === "NEUTRAL") s += GAME_CONFIG.AI_NEUTRAL_BONUS;
+  if (toD.faction === pf) { s += GAME_CONFIG.AI_PLAYER_FACTION_BONUS; if (toD.troops < 50) s += GAME_CONFIG.AI_WEAK_DEFENDER_BONUS; }
   const surround = (ADJ[toId] || []).filter(x => state[x]?.faction === aiKey).length;
-  s += surround * 10;
+  s += surround * GAME_CONFIG.AI_SURROUND_BONUS;
   const exposed = (ADJ[fromId] || []).filter(x => state[x]?.faction !== aiKey).length;
-  s -= exposed * 3;
+  s -= exposed * GAME_CONFIG.AI_EXPOSED_PENALTY;
   return s;
 }
 
@@ -153,7 +171,7 @@ function runAI(aiKey, state, pf) {
   const moves = [];
   myIds.forEach(fid => {
     const fd = state[fid];
-    if (fd.troops < 18) return;
+    if (fd.troops < GAME_CONFIG.AI_MIN_TROOPS_CONSIDER) return;
     (ADJ[fid] || []).forEach(tid => {
       const td = state[tid];
       if (!td || td.faction === aiKey) return;
@@ -165,7 +183,7 @@ function runAI(aiKey, state, pf) {
   const used = new Set(); const out = [];
   for (const m of moves) {
     if (out.length >= max || used.has(m.from)) continue;
-    if (state[m.from].troops < 22) continue;
+    if (state[m.from].troops < GAME_CONFIG.AI_MIN_TROOPS_MOVE) continue;
     used.add(m.from); out.push(m);
   }
   return out;
@@ -892,7 +910,7 @@ function WW3GameInner() {
     const rdata = rs[regionId]; if (!rdata) return;
     if (nukeMode) { if (rdata.faction !== playerFaction) setNukeConfirm(regionId); return; }
     if (mode === "select") {
-      if (rdata.faction === playerFaction && rdata.troops > 20) { AudioEngine.select(); setSelected(regionId); setMode("target"); }
+      if (rdata.faction === playerFaction && rdata.troops > GAME_CONFIG.MIN_TROOPS_TO_SELECT) { AudioEngine.select(); setSelected(regionId); setMode("target"); }
       else { setTooltip(regionId); setTimeout(() => setTooltip(null), 2000); }
     } else {
       if (regionId === selected) { setSelected(null); setMode("select"); return; }
@@ -900,26 +918,26 @@ function WW3GameInner() {
       const fromD = rs[selected], toD = rs[regionId];
       const rname = REGIONS.find(r => r.id === regionId)?.name;
       if (toD.faction === playerFaction) {
-        const amt = Math.floor(fromD.troops * 0.42);
+        const amt = Math.floor(fromD.troops * GAME_CONFIG.PLAYER_REINFORCE_RATIO);
         setRs(p => ({ ...p, [selected]: { ...p[selected], troops: p[selected].troops - amt }, [regionId]: { ...p[regionId], troops: p[regionId].troops + amt } }));
         AudioEngine.reinforce(); addLog(`ðŸ”„ Reinforced ${rname} +${amt}`, "reinforce");
       } else {
-        const atk = Math.floor(fromD.troops * 0.65);
+        const atk = Math.floor(fromD.troops * GAME_CONFIG.PLAYER_ATTACK_RATIO);
         AudioEngine.attackLaunch();
         const { win, al, dl } = doCombat(atk, toD.troops, FD[playerFaction].atk, FD[toD.faction]?.def || 1);
         setFlashReg(regionId); setTimeout(() => setFlashReg(null), 600);
         if (win) {
-          const rem = Math.max(10, atk - al);
+          const rem = Math.max(GAME_CONFIG.WIN_MIN_TROOPS, atk - al);
           setRs(p => {
-            const next = { ...p, [selected]: { ...p[selected], troops: Math.max(10, p[selected].troops - atk) }, [regionId]: { ...p[regionId], faction: playerFaction, troops: rem } };
+            const next = { ...p, [selected]: { ...p[selected], troops: Math.max(GAME_CONFIG.WIN_MIN_TROOPS, p[selected].troops - atk) }, [regionId]: { ...p[regionId], faction: playerFaction, troops: rem } };
             const w = checkWin(next); if (w) { setWinner(w); setTimeout(() => setAppScreen("gameover"), 500); }
             return next;
           });
           AudioEngine.capture(); setTimeout(() => AudioEngine.explosion(), 150); addLog(`âœ… Captured ${rname}! (lost ${al}, dealt ${dl})`, "win");
-          setTension(t => Math.min(100, t + 4));
+          setTension(t => Math.min(100, t + GAME_CONFIG.WIN_TENSION_INC));
         } else {
-          setRs(p => ({ ...p, [selected]: { ...p[selected], troops: Math.max(10, p[selected].troops - al) }, [regionId]: { ...p[regionId], troops: Math.max(5, p[regionId].troops - dl) } }));
-          AudioEngine.repelled(); addLog(`âŒ Repelled at ${rname}. Lost ${al}, dealt ${dl}`, "loss");
+          setRs(p => ({ ...p, [selected]: { ...p[selected], troops: Math.max(GAME_CONFIG.WIN_MIN_TROOPS, p[selected].troops - al) }, [regionId]: { ...p[regionId], troops: Math.max(GAME_CONFIG.LOSS_MIN_TROOPS, p[regionId].troops - dl) } }));
+          AudioEngine.repelled(); addLog(`â Œ Repelled at ${rname}. Lost ${al}, dealt ${dl}`, "loss");
         }
       }
       setSelected(null); setMode("select");
@@ -929,10 +947,10 @@ function WW3GameInner() {
 
   const launchNuke = useCallback((tid) => {
     const tname = REGIONS.find(r => r.id === tid)?.name, tf = rs[tid]?.faction;
-    setRs(p => ({ ...p, [tid]: { ...p[tid], troops: Math.max(3, Math.floor(p[tid].troops * 0.07)), faction: "NEUTRAL", bombed: true } }));
+    setRs(p => ({ ...p, [tid]: { ...p[tid], troops: Math.max(3, Math.floor(p[tid].troops * GAME_CONFIG.NUKE_SURVIVOR_RATIO)), faction: "NEUTRAL", bombed: true } }));
     setFs(p => ({ ...p, [playerFaction]: { ...p[playerFaction], nukes: p[playerFaction].nukes - 1 } }));
     AudioEngine.nuclear(); addLog(`â˜¢ï¸ NUCLEAR STRIKE: ${tname} obliterated!`, "nuke");
-    setTension(t => Math.min(100, t + 22));
+    setTension(t => Math.min(100, t + GAME_CONFIG.NUKE_TENSION_INC));
     setNukeMode(false); setNukeConfirm(null);
     doEndTurn();
   }, [rs, playerFaction, addLog, doEndTurn]);
