@@ -10,11 +10,13 @@
     "build": "esbuild entry.jsx --bundle --outfile=dist/bundle.js --define:process.env.NODE_ENV=\\\"production\\\""
   },
   "dependencies": {
+    "@expo/metro-runtime": "~55.0.6",
     "expo": "~55.0.4",
     "expo-status-bar": "~55.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-native": "0.83.2",
+    "react-native-web": "^0.21.2",
     "react-native-webview": "13.16.0"
   },
   "private": true,
