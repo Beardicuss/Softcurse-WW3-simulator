@@ -39,3 +39,20 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Legacy build artifacts (WW3 Simulator)
+game-bundle.js
+game-code-bundled.js
+game-code-debug.js
+game-code-final.js
+game.jsx
+gameCode.js
+ww3-simulation.jsx
+entry.jsx
+react-shim.js
+prev_app.txt
+
+# Local Artifacts & Brain
+brain/
+.gemini/
+
