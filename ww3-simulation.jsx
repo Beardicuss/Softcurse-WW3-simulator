@@ -110,10 +110,10 @@ Object.keys(ADJ_RAW).forEach(a => {
 });
 
 const FD = {
-  NATO:    { name:"NATO Alliance",    short:"NATO",  color:"#3a9eff", flag:"🇺🇸", atk:1.15, def:1.0,  nukes:14, income:22, desc:"Technological superiority & economic dominance.", starts:{usa:180,canada:100,uk:90,france:110,germany:120,poland:80,spain:60,italy:70,scandinavia:70,greenland:30,australia:60,brazil:50} },
-  EAST:    { name:"Eastern Alliance", short:"EAST",  color:"#ff3333", flag:"🇷🇺", atk:1.05, def:1.25, nukes:18, income:17, desc:"Vast Eurasian territory & nuclear arsenal.", starts:{russia_w:200,russia_e:160,russia_s:80,siberia:100,ukraine:100,kazakhstan:80,iran:90,iraq_syria:60,arabia:50} },
-  CHINA:   { name:"Pacific Pact",     short:"CHINA", color:"#ffcc00", flag:"🇨🇳", atk:1.10, def:1.10, nukes:10, income:20, desc:"World's largest army & Pacific dominance.", starts:{china_n:220,china_s:180,mongolia:70,korea:80,taiwan:60,se_asia:90,indonesia:70,japan:80,pacific_i:40} },
-  NEUTRAL: { name:"Neutral",          short:"NEU",   color:"#2a3d50", flag:"⚪",  atk:0.8,  def:0.85, nukes:0,  income:0,  desc:"", starts:{} },
+  NATO: { name: "NATO Alliance", short: "NATO", color: "#3a9eff", flag: "🇺🇸", atk: 1.15, def: 1.0, nukes: 14, income: 22, desc: "Technological superiority & economic dominance.", starts: { usa: 180, canada: 100, uk: 90, france: 110, germany: 120, poland: 80, spain: 60, italy: 70, scandinavia: 70, greenland: 30, australia: 60, brazil: 50 } },
+  EAST: { name: "Eastern Alliance", short: "EAST", color: "#ff3333", flag: "🇷🇺", atk: 1.05, def: 1.25, nukes: 18, income: 17, desc: "Vast Eurasian territory & nuclear arsenal.", starts: { russia_w: 200, russia_e: 160, russia_s: 80, siberia: 100, ukraine: 100, kazakhstan: 80, iran: 90, iraq_syria: 60, arabia: 50 } },
+  CHINA: { name: "Pacific Pact", short: "CHINA", color: "#ffcc00", flag: "🇨🇳", atk: 1.10, def: 1.10, nukes: 10, income: 20, desc: "World's largest army & Pacific dominance.", starts: { china_n: 220, china_s: 180, mongolia: 70, korea: 80, taiwan: 60, se_asia: 90, indonesia: 70, japan: 80, pacific_i: 40 } },
+  NEUTRAL: { name: "Neutral", short: "NEU", color: "#2a3d50", flag: "⚪", atk: 0.8, def: 0.85, nukes: 0, income: 0, desc: "", starts: {} },
 };
 
 const GAME_CONFIG = {
@@ -225,7 +225,7 @@ function SplashScreen({ onDone }) {
     const ctx = canvas.getContext("2d");
     let frame = 0;
     const W = canvas.width, H = canvas.height;
-    const PARTICLE_COUNT = 320;
+    const PARTICLE_COUNT = 100;
     const particles = Array.from({ length: PARTICLE_COUNT }, () => ({
       x: Math.random() * W, y: Math.random() * H,
       vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 0.8,
@@ -340,18 +340,18 @@ function SplashScreen({ onDone }) {
 // INTRO TIMELINE SCREEN
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const TIMELINE_EVENTS = [
-  { year:"2014", icon:"⚔️",  color:"#ff6644", title:"Ukraine Crisis",      desc:"Russia annexes Crimea. NATO's eastern flank erupts. A frozen conflict begins bleeding across Eastern Europe." },
-  { year:"2015", icon:"💣",  color:"#ff4422", title:"Syria Collapses",      desc:"Russian airstrikes prop up Assad. ISIS seizes territory. 5 million refugees flood Europe, fracturing alliances." },
-  { year:"2016", icon:"🗳️",  color:"#ffaa22", title:"Democratic Fractures", desc:"Brexit shocks the West. Populist movements sweep Europe and America. NATO's unity begins to crack." },
-  { year:"2017", icon:"🚀",  color:"#ff3300", title:"North Korea Nukes",    desc:"Kim Jong-un test-fires ICBMs. Pyongyang achieves nuclear strike capability. The Pacific holds its breath." },
-  { year:"2019", icon:"📡",  color:"#aa44ff", title:"Cyber Warfare Age",    desc:"State-sponsored hacking paralyzes power grids, elections, hospitals. Attribution becomes an act of war." },
-  { year:"2020", icon:"🦠",  color:"#44bbff", title:"Global Pandemic",      desc:"COVID-19 kills millions. Supply chains collapse. US-China blame war accelerates toward open hostility." },
-  { year:"2021", icon:"🇦🇫", color:"#ffcc00", title:"Kabul Falls",          desc:"US withdraws from Afghanistan. Taliban returns in hours. America's credibility as a guarantor shatters globally." },
-  { year:"2022", icon:"🔥",  color:"#ff2200", title:"Ukraine Invasion",     desc:"Russia launches full-scale war. Kyiv holds. 200,000+ dead. NATO floods arms eastward. Nuclear alerts rise." },
-  { year:"2023", icon:"💥",  color:"#ff4400", title:"Middle East Erupts",   desc:"October 7th Hamas attack. Gaza war engulfs the region. Iran proxies strike US bases 160+ times." },
-  { year:"2024", icon:"⚡",  color:"#ffee33", title:"Alliances Shatter",    desc:"Taiwan Strait incidents multiply. South China Sea skirmishes. AUKUS vs BRICS blocs harden into cold war 2.0." },
-  { year:"2025", icon:"☢️",  color:"#ff3300", title:"Point of No Return",   desc:"Tactical nuclear device detonated in a conflict zone. UN Security Council paralyzed. The countdown begins." },
-  { year:"2026", icon:"🌍",  color:"#ff0000", title:"WORLD WAR III",        desc:"Three superpowers mobilize. Borders dissolve in fire. The fate of civilization rests in the hands of commanders like you." },
+  { year: "2014", icon: "⚔️", color: "#ff6644", title: "Ukraine Crisis", desc: "Russia annexes Crimea. NATO's eastern flank erupts. A frozen conflict begins bleeding across Eastern Europe." },
+  { year: "2015", icon: "💣", color: "#ff4422", title: "Syria Collapses", desc: "Russian airstrikes prop up Assad. ISIS seizes territory. 5 million refugees flood Europe, fracturing alliances." },
+  { year: "2016", icon: "🗳️", color: "#ffaa22", title: "Democratic Fractures", desc: "Brexit shocks the West. Populist movements sweep Europe and America. NATO's unity begins to crack." },
+  { year: "2017", icon: "🚀", color: "#ff3300", title: "North Korea Nukes", desc: "Kim Jong-un test-fires ICBMs. Pyongyang achieves nuclear strike capability. The Pacific holds its breath." },
+  { year: "2019", icon: "📡", color: "#aa44ff", title: "Cyber Warfare Age", desc: "State-sponsored hacking paralyzes power grids, elections, hospitals. Attribution becomes an act of war." },
+  { year: "2020", icon: "🦠", color: "#44bbff", title: "Global Pandemic", desc: "COVID-19 kills millions. Supply chains collapse. US-China blame war accelerates toward open hostility." },
+  { year: "2021", icon: "🇦🇫", color: "#ffcc00", title: "Kabul Falls", desc: "US withdraws from Afghanistan. Taliban returns in hours. America's credibility as a guarantor shatters globally." },
+  { year: "2022", icon: "🔥", color: "#ff2200", title: "Ukraine Invasion", desc: "Russia launches full-scale war. Kyiv holds. 200,000+ dead. NATO floods arms eastward. Nuclear alerts rise." },
+  { year: "2023", icon: "💥", color: "#ff4400", title: "Middle East Erupts", desc: "October 7th Hamas attack. Gaza war engulfs the region. Iran proxies strike US bases 160+ times." },
+  { year: "2024", icon: "⚡", color: "#ffee33", title: "Alliances Shatter", desc: "Taiwan Strait incidents multiply. South China Sea skirmishes. AUKUS vs BRICS blocs harden into cold war 2.0." },
+  { year: "2025", icon: "☢️", color: "#ff3300", title: "Point of No Return", desc: "Tactical nuclear device detonated in a conflict zone. UN Security Council paralyzed. The countdown begins." },
+  { year: "2026", icon: "🌍", color: "#ff0000", title: "WORLD WAR III", desc: "Three superpowers mobilize. Borders dissolve in fire. The fate of civilization rests in the hands of commanders like you." },
 ];
 
 function IntroScreen({ onDone }) {
@@ -381,7 +381,7 @@ function IntroScreen({ onDone }) {
 
   return (
     <div style={{
-      background: "#020810", minHeight: "100vh", display: "flex", flexDirection: "column",
+      background: "#020810", height: "100vh", maxHeight: "100vh", display: "flex", flexDirection: "column",
       fontFamily: "'Courier New',monospace", color: "#c8d8e8", overflow: "hidden",
       position: "relative",
     }}>
@@ -450,7 +450,7 @@ function IntroScreen({ onDone }) {
         {/* Final warning */}
         {done && (
           <div style={{
-            textAlign: "center", marginTop: 10, padding: "20px",
+            textAlign: "center", marginTop: 10, padding: "20px", marginBottom: "40px",
             border: "1px solid #ff220033", borderRadius: 4,
             background: "linear-gradient(135deg,rgba(20,0,0,0.8),rgba(40,5,5,0.5))",
             animation: "evtIn 0.5s ease",

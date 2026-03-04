@@ -14,6 +14,12 @@
     "ios": {
       "supportsTablet": true
     },
+    "androidStatusBar": {
+      "hidden": true
+    },
+    "androidNavigationBar": {
+      "visible": "sticky-immersive"
+    },
     "android": {
       "package": "com.softcurse.ww3simulator",
       "adaptiveIcon": {
