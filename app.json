@@ -3,7 +3,7 @@
     "name": "ww3-simulator",
     "slug": "ww3-simulator",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/ww3.png",
     "userInterfaceStyle": "light",
     "splash": {
