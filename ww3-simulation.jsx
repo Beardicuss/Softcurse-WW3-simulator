@@ -325,7 +325,7 @@ function SplashScreen({ onDone }) {
           fontFamily: "'Courier New',monospace",
           animation: logoVisible ? "taglineIn 1.2s 0.4s ease forwards" : undefined,
           opacity: 0,
-        }}>STUDIO Â· PRESENTS</div>
+        }}>STUDIO · PRESENTS</div>
       </div>
 
       {/* Bottom vignette */}
@@ -336,9 +336,9 @@ function SplashScreen({ onDone }) {
 }
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// --------------------------------------------------------------------------------
 // INTRO TIMELINE SCREEN
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// --------------------------------------------------------------------------------
 const TIMELINE_EVENTS = [
   { year: "2014", icon: "⚔️", color: "#ff6644", title: "Ukraine Crisis", desc: "Russia annexes Crimea. NATO's eastern flank erupts. A frozen conflict begins bleeding across Eastern Europe." },
   { year: "2015", icon: "💣", color: "#ff4422", title: "Syria Collapses", desc: "Russian airstrikes prop up Assad. ISIS seizes territory. 5 million refugees flood Europe, fracturing alliances." },
@@ -455,7 +455,7 @@ function IntroScreen({ onDone }) {
             background: "linear-gradient(135deg,rgba(20,0,0,0.8),rgba(40,5,5,0.5))",
             animation: "evtIn 0.5s ease",
           }}>
-            <div style={{ fontSize: 26, marginBottom: 8 }}>âš”ï¸</div>
+            <div style={{ fontSize: 26, marginBottom: 8 }}>⚔️</div>
             <div style={{ fontFamily: "'Cinzel',serif", fontSize: 16, letterSpacing: 5, color: "#ff4422", marginBottom: 6 }}>THE WORLD BURNS</div>
             <div style={{ fontSize: 9, color: "#886655", lineHeight: 1.9, marginBottom: 20 }}>
               Every conflict, every miscalculation, every broken treaty led to this moment.<br />
@@ -469,7 +469,7 @@ function IntroScreen({ onDone }) {
               cursor: "pointer", borderRadius: 3, fontFamily: "'Courier New',monospace",
               boxShadow: "0 0 20px #ff220044",
             }}>
-              TAKE COMMAND â†’
+              TAKE COMMAND →
             </button>
           </div>
         )}
@@ -479,7 +479,7 @@ function IntroScreen({ onDone }) {
       {!done && (
         <div style={{ padding: "10px 40px", borderTop: "1px solid #0d2030", display: "flex", justifyContent: "flex-end", background: "#020810", flexShrink: 0 }}>
           <button onClick={handleSkip} style={{ background: "transparent", color: "#2a4a5a", border: "1px solid #0d2030", padding: "6px 16px", fontSize: 8, letterSpacing: 2, cursor: "pointer", borderRadius: 2, fontFamily: "'Courier New',monospace" }}>
-            SKIP â­
+            SKIP ⏭
           </button>
         </div>
       )}
