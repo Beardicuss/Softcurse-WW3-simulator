@@ -40,8 +40,8 @@ const FactionSelectView = ({ onStart }) => {
                             >
                                 <View style={styles.cardHeader}>
                                     <Text style={styles.flag}>{FD[fk].flag}</Text>
-                                    <View>
-                                        <Text style={[styles.factionName, { color: FD[fk].color }]}>{FD[fk].name}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.factionName, { color: FD[fk].color }]} numberOfLines={1} adjustsFontSizeToFit>{FD[fk].name}</Text>
                                         <Text style={styles.factionShort}>{fk} COMMAND</Text>
                                     </View>
                                 </View>
@@ -50,15 +50,15 @@ const FactionSelectView = ({ onStart }) => {
 
                                 <View style={styles.statsContainer}>
                                     <View style={styles.statBox}>
-                                        <Crosshair color="#fff" size={12} style={{ marginRight: 4 }} />
+                                        <Crosshair color="#fff" size={10} style={{ marginRight: 2 }} />
                                         <Text style={styles.statLine}>ATK: {FD[fk].atk}x</Text>
                                     </View>
                                     <View style={styles.statBox}>
-                                        <Shield color="#fff" size={12} style={{ marginRight: 4 }} />
+                                        <Shield color="#fff" size={10} style={{ marginRight: 2 }} />
                                         <Text style={styles.statLine}>DEF: {FD[fk].def}x</Text>
                                     </View>
                                     <View style={styles.statBox}>
-                                        <ShieldAlert color="#e74c3c" size={12} style={{ marginRight: 4 }} />
+                                        <ShieldAlert color="#e74c3c" size={10} style={{ marginRight: 2 }} />
                                         <Text style={[styles.statLine, { color: '#e74c3c' }]}>NUKES: {FD[fk].nukes}</Text>
                                     </View>
                                 </View>
@@ -137,10 +137,10 @@ const styles = StyleSheet.create({
     },
     flag: {
         fontSize: 48,
-        marginRight: 20,
+        marginRight: 10,
     },
     factionName: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: 'bold',
         letterSpacing: 1,
     },
@@ -159,8 +159,10 @@ const styles = StyleSheet.create({
     statsContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 4,
         backgroundColor: '#000',
-        padding: 15,
+        padding: 10,
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#222',
@@ -171,9 +173,9 @@ const styles = StyleSheet.create({
     },
     statLine: {
         color: '#ddd',
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: 'bold',
-        letterSpacing: 1,
+        letterSpacing: 0.5,
     },
     bottomBar: {
         flexDirection: 'row',
