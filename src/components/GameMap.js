@@ -3,7 +3,7 @@ import { StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
     Canvas, Circle, Path, Group, Rect, vec,
-    LinearGradient, Skia, Shadow, DashPathEffect
+    LinearGradient, Skia
 } from '@shopify/react-native-skia';
 import Animated, { useSharedValue, useDerivedValue } from 'react-native-reanimated';
 import { REGIONS, ADJ, FD } from '../data/mapData';
@@ -222,7 +222,6 @@ const GameMap = () => {
 
                     {/* ── Faction-colored country shapes ───────────────────── */}
                     <Group>
-                        <Shadow dx={0} dy={8} blur={10} color="rgba(0,0,0,0.8)" />
                         {regionSkiaPaths.map(entry => {
                             if (!entry.skiPath) return null;
                             const gameRegion = regions[entry.id];
@@ -247,17 +246,10 @@ const GameMap = () => {
                         <Path
                             key={line.id}
                             path={line.skiPath}
-                            color="#e74c3c"
+                            color="rgba(231,76,60,0.5)"
                             style="stroke"
-                            strokeWidth={1.5}
-                        >
-                            <DashPathEffect intervals={[4, 4]} />
-                            <LinearGradient
-                                start={vec(line.x1, line.y1)}
-                                end={vec(line.x2, line.y2)}
-                                colors={["rgba(255, 100, 100, 0.2)", "rgba(255, 150, 150, 0.8)", "rgba(255, 100, 100, 0.2)"]}
-                            />
-                        </Path>
+                            strokeWidth={1}
+                        />
                     ))}
 
                     {/* ── Region hex nodes ─────────────────────────────────── */}

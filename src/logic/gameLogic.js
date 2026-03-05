@@ -46,14 +46,16 @@ export function initGame() {
             oil: 500,
             supplies: 800,
             stability: 100,
-            alertLevel: 1 // 1-5
+            alertLevel: 1,
+            techPoints: 3,        // starting research points
+            unlockedTech: [],     // array of tech node IDs
         };
     });
 
     return { rs, fs, date: INITIAL_DATE.getTime() };
 }
 
-export function calculateIncome(factionKey, regions) {
+export function calculateIncome(factionKey, regions, techMods = {}, enemyDebuffMult = 1) {
     let income = FD[factionKey].income || 10;
     let oilProd = 0;
 
@@ -63,6 +65,12 @@ export function calculateIncome(factionKey, regions) {
             if (r.strategic) oilProd += 10;
         }
     });
+
+    // Own tech income bonus
+    income = Math.floor(income * (1 + (techMods.incomeBonus || 0)));
+
+    // Enemy CYBER_2 infrastructure virus reduces this faction's income
+    income = Math.floor(income * enemyDebuffMult);
 
     return { income, oilProd };
 }
@@ -101,32 +109,44 @@ export function applyCasualties(region, damage) {
     return { infantry, armor, air };
 }
 
-export function doCombat(attRegion, defRegion, ab, db, attackerStability = 100, defenderStability = 100) {
+export function doCombat(attRegion, defRegion, ab, db, attackerStability = 100, defenderStability = 100, atkMods = {}, defMods = {}) {
     const stabilityModA = attackerStability / 100;
     const stabilityModD = defenderStability / 100;
 
-    // Attacker loses 1 infantry staying behind, combat power calculated from the rest
     const attackingForces = {
         infantry: Math.max(0, attRegion.infantry - 1),
         armor: attRegion.armor,
         air: attRegion.air
     };
 
-    const aPower = calculatePower(attackingForces, true) * ab * stabilityModA * (0.7 + Math.random() * 0.6);
-    const dPower = calculatePower(defRegion, false) * db * stabilityModD * (0.7 + Math.random() * 0.6);
+    // Tech bonuses for attacker
+    const atkTechBonus  = 1 + (atkMods.globalAtkBonus || 0) + (atkMods.airAtkBonus || 0);
+    const armorAtkMult  = atkMods.armorAtkMult || 1;
+    const defPenetration = atkMods.defPenetration || 0;
+
+    // Tech bonuses for defender
+    const defTechBonus = 1 + (defMods.globalDefBonus || 0) + (defMods.armorDefBonus || 0);
+    const enemyAtkDebuff = defMods.enemyAtkDebuff || 0; // defender's EW debuffing attacker
+
+    // Effective multipliers
+    const effectiveAtkMult = ab * atkTechBonus * (1 - enemyAtkDebuff) * stabilityModA;
+    const effectiveDefMult = db * defTechBonus * (1 - defPenetration) * stabilityModD;
+
+    // Calculate raw power (armor gets its own multiplier)
+    const baseAtkPower =
+        (attackingForces.infantry * UNIT_STATS.infantry.atk) +
+        (attackingForces.armor   * UNIT_STATS.armor.atk   * armorAtkMult) +
+        (attackingForces.air     * UNIT_STATS.air.atk);
+
+    const aPower = baseAtkPower * effectiveAtkMult * (0.7 + Math.random() * 0.6);
+    const dPower = calculatePower(defRegion, false) * effectiveDefMult * (0.7 + Math.random() * 0.6);
 
     const win = aPower > dPower;
 
-    // Abstract damage points
     const aDamage = win ? Math.floor(dPower * (0.15 + Math.random() * 0.2)) : Math.floor(dPower * (0.4 + Math.random() * 0.25));
     const dDamage = win ? Math.floor(aPower * (0.5 + Math.random() * 0.3)) : Math.floor(aPower * (0.15 + Math.random() * 0.15));
 
-    return {
-        win,
-        aDamage,
-        dDamage,
-        stabilityDamage: win ? 5 : 15
-    };
+    return { win, aDamage, dDamage, stabilityDamage: win ? 5 : 15 };
 }
 
 export function calculateSupply(regions) {

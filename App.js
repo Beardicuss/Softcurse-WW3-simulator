@@ -4,7 +4,6 @@ import {
   Zap,
   Globe,
   Shield,
-  Skull,
   Menu,
   ChevronRight,
   Activity,
@@ -19,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import useGameStore from './src/store/useGameStore';
 import { FD } from './src/data/mapData';
+import { computeTechModifiers } from './src/data/techTree';
 import GameMap from './src/components/GameMap';
 import IntroScreen from './src/components/IntroScreen';
 import SplashScreen from './src/components/SplashScreen';
@@ -26,6 +26,7 @@ import MainMenuView from './src/components/MainMenuView';
 import FactionSelectView from './src/components/FactionSelectView';
 import EconomyPanel from './src/components/EconomyPanel';
 import DiplomacyPanel from './src/components/DiplomacyPanel';
+import ResearchPanel from './src/components/ResearchPanel';
 import SettingsView from './src/components/SettingsView';
 import GameFrame from './src/components/GameFrame';
 
@@ -34,11 +35,14 @@ const { width, height } = Dimensions.get('window');
 const App = () => {
   const {
     uiMode, playerFaction, factions, regions,
-    turn, date, gameLog, selectedRegionId, startGame, checkHasSave
+    turn, date, gameLog, selectedRegionId, startGame, checkHasSave,
+    nukeUsedThisTurn, launchNuke, orbitalStrike, blackoutRegion, aiMemory,
   } = useGameStore();
 
   const [showEconomy, setShowEconomy] = React.useState(false);
   const [showDiplomacy, setShowDiplomacy] = React.useState(false);
+  const [showResearch, setShowResearch] = React.useState(false);
+  const [showNukeModal, setShowNukeModal] = React.useState(false);
 
   React.useEffect(() => { checkHasSave(); }, [checkHasSave]);
 
@@ -49,9 +53,15 @@ const App = () => {
   if (uiMode === 'SETTINGS') return <SettingsView />;
 
   const currentFD = FD[playerFaction];
-  const currentFS = factions[playerFaction] || { funds: 0, oil: 0, supplies: 0, stability: 100, nukes: 0 };
+  const currentFS = factions[playerFaction] || { funds: 0, oil: 0, supplies: 0, stability: 100, nukes: 0, techPoints: 0, unlockedTech: [] };
   const selectedRegion = selectedRegionId ? regions[selectedRegionId] : null;
-  const mapActive = !showEconomy && !showDiplomacy;
+  const mapActive = !showEconomy && !showDiplomacy && !showResearch;
+
+  // Tech mods for player — drives what special actions are available
+  const playerMods = computeTechModifiers(currentFS.unlockedTech || []);
+  const canNuke = (currentFS.nukes || 0) > 0 && !nukeUsedThisTurn;
+  const canOrbital = (playerMods.orbitalStrikeCharges || 0) > 0;
+  const canBlackout = (playerMods.blackoutCharges || 0) > 0;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -65,7 +75,7 @@ const App = () => {
         </View>
 
         {/* LAYER 2: SKIA OVERLAY (borders, hanging frames) */}
-        <GameFrame activeTab={showEconomy ? 1 : showDiplomacy ? 2 : 0} />
+        <GameFrame />
 
         {/* LAYER 3: UI ELEMENTS */}
         <View style={styles.uiLayer} pointerEvents="box-none">
@@ -90,6 +100,21 @@ const App = () => {
                 <Zap size={13} color="#3498db" />
                 <Text style={styles.resourceText}>{currentFS?.stability || 0}% ENERGY</Text>
               </View>
+              <TouchableOpacity
+                style={[styles.resourceItem, styles.techPointsItem, showResearch && styles.techPointsActive]}
+                onPress={() => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }}
+              >
+                <Text style={styles.techPointsIcon}>⚗</Text>
+                <Text style={[styles.techPointsText, (currentFS?.techPoints || 0) > 0 && styles.techPointsAvailable]}>
+                  {currentFS?.techPoints || 0} TP
+                </Text>
+              </TouchableOpacity>
+              {(currentFS.nukes || 0) > 0 && (
+                <View style={[styles.resourceItem, styles.nukesItem, nukeUsedThisTurn && styles.nukesUsed]}>
+                  <Text style={styles.nukesIcon}>☢</Text>
+                  <Text style={styles.nukesText}>{currentFS.nukes}</Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity style={styles.menuIcon} onPress={() => useGameStore.setState({ uiMode: 'MENU' })}>
               <Menu color="#a0c8e0" size={20} />
@@ -112,37 +137,73 @@ const App = () => {
                   </View>
                 ))}
               </View>
+              {/* AI Intelligence read-out — shows what the AI has learned */}
+              <View style={styles.aiIntelBlock}>
+                {['EAST','CHINA'].filter(f => f !== playerFaction).map(aiKey => {
+                  const mem = aiMemory?.[aiKey] || {};
+                  const doctrine = mem.playerDoctrine || '—';
+                  const lossCount = Object.values(mem.recentLosses || {}).reduce((a,b) => a+b, 0);
+                  const fcolor = FD[aiKey]?.color || '#fff';
+                  return (
+                    <View key={aiKey} style={styles.aiIntelRow}>
+                      <Text style={[styles.aiIntelFaction, { color: fcolor }]}>{FD[aiKey].short}</Text>
+                      <Text style={styles.aiIntelLabel}>detected: </Text>
+                      <Text style={[styles.aiIntelValue, { color: '#f39c12' }]}>{doctrine.replace('-',' ')}</Text>
+                      {lossCount > 0.5 && (
+                        <Text style={styles.aiIntelCaution}> ⚠{Math.ceil(lossCount)}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
 
-            {/* TERRAIN & DEPTH INTEL — bottom left, above nav */}
+            {/* TERRAIN INTEL — bottom left, styled */}
             <View style={styles.intelPanel} pointerEvents="none">
               <View style={styles.intelHeader}>
-                <Text style={styles.intelTitle}>TERRAIN & DEPTH INTEL</Text>
+                <View style={styles.intelHeaderAccent} />
+                <Text style={styles.intelTitle}>
+                  {selectedRegionId ? selectedRegionId.replace(/_/g,' ').toUpperCase() : 'REGION INTEL'}
+                </Text>
               </View>
-              <View style={styles.intelBody}>
-                <View style={styles.intelRow}>
-                  {/* Color scale bar */}
-                  <View style={{ width: 12, height: 50, borderWidth: 1, borderColor: '#4a5568', overflow: 'hidden' }}>
-                    <View style={{ flex: 1, backgroundColor: '#8b4513' }} />
-                    <View style={{ flex: 1, backgroundColor: '#cd853f' }} />
-                    <View style={{ flex: 1, backgroundColor: '#228b22' }} />
-                    <View style={{ flex: 1, backgroundColor: '#4169e1' }} />
-                    <View style={{ flex: 1, backgroundColor: '#000080' }} />
+              {selectedRegion ? (
+                <View style={styles.intelBody}>
+                  <View style={styles.intelFactionRow}>
+                    <View style={[styles.intelFactionDot, { backgroundColor: FD[selectedRegion.faction]?.color || '#2a3d50' }]} />
+                    <Text style={[styles.intelFactionName, { color: FD[selectedRegion.faction]?.color || '#aaa' }]}>
+                      {FD[selectedRegion.faction]?.short || 'NEU'}
+                    </Text>
+                    {selectedRegion.isolated && <Text style={styles.intelWarning}> ⚠ISO</Text>}
                   </View>
-                  <View>
-                    <Text style={styles.intelLabel}>Elevation</Text>
-                    <Text style={styles.intelText}>1000km</Text>
-                    <Text style={styles.intelText}>200km</Text>
-                    <Text style={styles.intelText}>-80km</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.intelLabel}>Depth</Text>
-                    <Text style={styles.intelText}>0</Text>
-                    <Text style={styles.intelText}>-100</Text>
-                    <Text style={styles.intelText}>-2500</Text>
+                  <View style={styles.intelDivider} />
+                  {[
+                    { label: 'ECO', raw: selectedRegion.economy || 0, max: 100, color: '#f39c12' },
+                    { label: 'IND', raw: selectedRegion.industry || 0, max: 25, color: '#3498db' },
+                    { label: 'STB', raw: selectedRegion.stability || 0, max: 100, color: (selectedRegion.stability || 0) > 60 ? '#2ecc71' : '#e74c3c' },
+                  ].map(row => (
+                    <View key={row.label} style={styles.intelStatRow}>
+                      <Text style={styles.intelStatLabel}>{row.label}</Text>
+                      <View style={styles.intelBarBg}>
+                        <View style={[styles.intelBarFill, {
+                          width: `${Math.min(100, Math.round(row.raw / row.max * 100))}%`,
+                          backgroundColor: row.color
+                        }]} />
+                      </View>
+                      <Text style={[styles.intelStatVal, { color: row.color }]}>{row.raw}</Text>
+                    </View>
+                  ))}
+                  <View style={styles.intelDivider} />
+                  <View style={styles.intelUnitsRow}>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>⚔ {selectedRegion.infantry || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>🛡 {selectedRegion.armor || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>✈ {selectedRegion.air || 0}</Text></View>
                   </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.intelBody}>
+                  <Text style={styles.intelEmpty}>Tap a region{'\n'}to view intel</Text>
+                </View>
+              )}
             </View>
 
             {/* SELECTION CARD — bottom right, above nav */}
@@ -165,58 +226,75 @@ const App = () => {
                       <Text style={styles.selectionTroops}>F: {selectedRegion?.air || 0}</Text>
                     </View>
                   </View>
-                  {selectedRegion?.faction !== playerFaction && (
-                    <TouchableOpacity
-                      style={styles.nukeBtnMap}
-                      onPress={() => {
-                        useGameStore.setState(s => {
-                          const newRegions = { ...s.regions };
-                          newRegions[selectedRegionId].infantry = Math.floor((newRegions[selectedRegionId].infantry || 0) * 0.1);
-                          newRegions[selectedRegionId].armor = Math.floor((newRegions[selectedRegionId].armor || 0) * 0.1);
-                          newRegions[selectedRegionId].air = Math.floor((newRegions[selectedRegionId].air || 0) * 0.1);
-                          newRegions[selectedRegionId].bombed = true;
-                          return { regions: newRegions, gameLog: [`NUCLEAR STRIKE on ${selectedRegionId.toUpperCase()}!`, ...s.gameLog].slice(0, 10) };
-                        });
-                      }}
-                    >
-                      <Skull size={13} color="#e74c3c" />
-                      <Text style={styles.nukeTextMap}>LAUNCH STRIKE</Text>
-                    </TouchableOpacity>
+                  {/* Special actions vs enemy regions */}
+                  {selectedRegion?.faction !== playerFaction && selectedRegion?.faction !== 'NEUTRAL' && (
+                    <View style={styles.specialActionsBar}>
+                      {/* NUCLEAR — ultimate, requires stockpile + once per turn */}
+                      <TouchableOpacity
+                        style={[styles.specialBtn, styles.specialBtnNuke, (!canNuke) && styles.specialBtnDisabled]}
+                        onPress={() => canNuke && setShowNukeModal(true)}
+                        disabled={!canNuke}
+                      >
+                        <Text style={styles.specialBtnIcon}>☢</Text>
+                        <Text style={[styles.specialBtnLabel, !canNuke && { color: '#444' }]}>
+                          NUKE{'\n'}
+                          <Text style={styles.specialBtnSub}>{currentFS.nukes}▸</Text>
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* ORBITAL STRIKE — Space T3 */}
+                      <TouchableOpacity
+                        style={[styles.specialBtn, styles.specialBtnOrbital, !canOrbital && styles.specialBtnDisabled]}
+                        onPress={() => { if (canOrbital) orbitalStrike(selectedRegionId); }}
+                        disabled={!canOrbital}
+                      >
+                        <Text style={styles.specialBtnIcon}>⚡</Text>
+                        <Text style={[styles.specialBtnLabel, !canOrbital && { color: '#444' }]}>
+                          ORBITAL{'\n'}
+                          <Text style={styles.specialBtnSub}>{canOrbital ? 'READY' : 'LOCKED'}</Text>
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* E-WAR BLACKOUT — EW T3 */}
+                      <TouchableOpacity
+                        style={[styles.specialBtn, styles.specialBtnBlackout, !canBlackout && styles.specialBtnDisabled]}
+                        onPress={() => { if (canBlackout) blackoutRegion(selectedRegionId); }}
+                        disabled={!canBlackout}
+                      >
+                        <Text style={styles.specialBtnIcon}>📡</Text>
+                        <Text style={[styles.specialBtnLabel, !canBlackout && { color: '#444' }]}>
+                          BLACKOUT{'\n'}
+                          <Text style={styles.specialBtnSub}>{canBlackout ? 'READY' : 'LOCKED'}</Text>
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               )}
             </View>
           </View>
 
-          {/* BOTTOM NAV — inside frame, exactly 5 tabs */}
+          {/* BOTTOM NAV — real styled tabs */}
           <View style={styles.bottomNavBar}>
-            <TouchableOpacity
-              style={[styles.navItem, mapActive && styles.navItemActive]}
-              onPress={() => { setShowEconomy(false); setShowDiplomacy(false); }}
-            >
-              <Text style={[styles.navText, mapActive && styles.navTextActive]}>MAP</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.navItem, showEconomy && styles.navItemActive]}
-              onPress={() => { setShowEconomy(!showEconomy); setShowDiplomacy(false); }}
-            >
-              <Text style={[styles.navText, showEconomy && styles.navTextActive]}>DEPLOY</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navItem}
-              onPress={() => { }}
-            >
-              <Text style={styles.navText}>RESEARCH</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.navItem, showDiplomacy && styles.navItemActive]}
-              onPress={() => { setShowDiplomacy(!showDiplomacy); setShowEconomy(false); }}
-            >
-              <Text style={[styles.navText, showDiplomacy && styles.navTextActive]}>ALLIANCE</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={() => useGameStore.getState().endTurn()}>
-              <Text style={styles.navText}>END TURN</Text>
-            </TouchableOpacity>
+            {[
+              { label: 'MAP',      icon: '🗺',  onPress: () => { setShowEconomy(false); setShowDiplomacy(false); setShowResearch(false); }, active: mapActive },
+              { label: 'DEPLOY',   icon: '⚙',  onPress: () => { setShowEconomy(!showEconomy); setShowDiplomacy(false); setShowResearch(false); }, active: showEconomy },
+              { label: 'RESEARCH', icon: '⚗',  onPress: () => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }, active: showResearch },
+              { label: 'ALLIANCE', icon: '🤝',  onPress: () => { setShowDiplomacy(!showDiplomacy); setShowEconomy(false); setShowResearch(false); }, active: showDiplomacy },
+              { label: 'END TURN', icon: '▶',  onPress: () => useGameStore.getState().endTurn(), active: false, danger: true },
+            ].map((tab, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={tab.onPress}
+                style={[styles.navTab, tab.active && styles.navTabActive, tab.danger && styles.navTabDanger]}
+              >
+                <Text style={styles.navTabIcon}>{tab.icon}</Text>
+                <Text style={[styles.navTabLabel, tab.active && styles.navTabLabelActive, tab.danger && styles.navTabLabelDanger]}>
+                  {tab.label}
+                </Text>
+                {tab.active && <View style={styles.navTabUnderline} />}
+              </TouchableOpacity>
+            ))}
           </View>
 
         </View>
@@ -229,6 +307,35 @@ const App = () => {
 
       {showEconomy && <EconomyPanel onClose={() => setShowEconomy(false)} />}
       {showDiplomacy && <DiplomacyPanel onClose={() => setShowDiplomacy(false)} />}
+      {showResearch && <ResearchPanel onClose={() => setShowResearch(false)} />}
+
+      {/* NUCLEAR LAUNCH CONFIRMATION MODAL */}
+      {showNukeModal && selectedRegionId && (
+        <View style={styles.nukeOverlay}>
+          <View style={styles.nukeModal}>
+            <Text style={styles.nukeModalWarning}>⚠ NUCLEAR AUTHORIZATION ⚠</Text>
+            <Text style={styles.nukeModalTitle}>☢ STRIKE: {selectedRegionId.replace(/_/g,' ').toUpperCase()}</Text>
+            <View style={styles.nukeModalInfo}>
+              <Text style={styles.nukeModalDetail}>Warheads remaining: {currentFS.nukes}</Text>
+              {playerMods.tacticalNukes && <Text style={styles.nukeModalTech}>✓ Tactical Warheads — region will be captured</Text>}
+              {(playerMods.nukeDamageMult || 1) >= 1.5 && <Text style={styles.nukeModalTech}>✓ MIRV Arsenal — total annihilation + economy damage</Text>}
+              <Text style={styles.nukeModalWarn}>Global stability −8 for all factions</Text>
+              <Text style={styles.nukeModalWarn}>One use per turn</Text>
+            </View>
+            <View style={styles.nukeModalBtns}>
+              <TouchableOpacity style={styles.nukeCancelBtn} onPress={() => setShowNukeModal(false)}>
+                <Text style={styles.nukeCancelTxt}>ABORT</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.nukeConfirmBtn}
+                onPress={() => { launchNuke(selectedRegionId); setShowNukeModal(false); }}
+              >
+                <Text style={styles.nukeConfirmTxt}>☢ LAUNCH</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
     </GestureHandlerRootView>
   );
@@ -306,6 +413,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
   },
+  techPointsItem: {
+    borderWidth: 1,
+    borderColor: 'rgba(52,152,219,0.3)',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(52,152,219,0.08)',
+  },
+  techPointsActive: {
+    borderColor: '#3498db',
+    backgroundColor: 'rgba(52,152,219,0.2)',
+  },
+  techPointsIcon: { fontSize: 12 },
+  techPointsText: {
+    color: '#3a5878',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  techPointsAvailable: { color: '#3498db' },
   menuIcon: {
     position: 'absolute',
     right: 16,
@@ -366,69 +493,152 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
   },
+  aiIntelBlock: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 3,
+  },
+  aiIntelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+  },
+  aiIntelFaction: { fontSize: 9, fontWeight: '900', width: 34 },
+  aiIntelLabel:   { color: '#2a4050', fontSize: 9 },
+  aiIntelValue:   { fontSize: 9, fontWeight: '700' },
+  aiIntelCaution: { color: '#e74c3c', fontSize: 9, fontWeight: '900' },
 
-  // TERRAIN & DEPTH INTEL — matches HTML .terrain-panel exactly
+  // TERRAIN INTEL panel
   intelPanel: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 42,
     left: 0,
-    width: 156,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    borderColor: '#3f515d',
-    borderBottomWidth: 3,
-    borderBottomColor: '#2c3a44',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+    width: 160,
+    backgroundColor: 'rgba(6,14,26,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(52,152,219,0.25)',
+    borderLeftWidth: 0,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
   },
   intelHeader: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(52,152,219,0.2)',
+  },
+  intelHeaderAccent: {
+    width: 3,
+    height: 12,
+    backgroundColor: '#3498db',
+    marginRight: 7,
+    borderRadius: 1,
   },
   intelTitle: {
-    color: '#cbd5e0',
+    color: '#7fb3d3',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  intelBody: {
+    padding: 10,
+  },
+  intelFactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  intelFactionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  intelFactionName: {
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1,
-    textTransform: 'uppercase',
   },
-  intelBody: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+  intelWarning: {
+    color: '#e74c3c',
+    fontSize: 8,
+    fontWeight: '900',
+    marginLeft: 4,
   },
-  intelLegendStripe: {
+  intelDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginVertical: 5,
+  },
+  intelStatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 0,
+    marginBottom: 4,
   },
-  intelRow: {
+  intelStatLabel: {
+    color: '#4a6278',
+    fontSize: 8,
+    fontWeight: '900',
+    width: 24,
+    letterSpacing: 0.5,
+  },
+  intelBarBg: {
+    flex: 1,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    marginHorizontal: 6,
+    overflow: 'hidden',
+  },
+  intelBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  intelStatVal: {
+    fontSize: 8,
+    fontWeight: '900',
+    width: 20,
+    textAlign: 'right',
+    fontFamily: 'monospace',
+  },
+  intelUnitsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
-  intelLabel: {
-    color: '#718096',
+  intelUnitChip: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 3,
+    paddingVertical: 3,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  intelUnitText: {
+    color: '#8fa8bc',
     fontSize: 8,
     fontWeight: '700',
-    marginBottom: 2,
+  },
+  intelEmpty: {
+    color: '#3a5060',
+    fontSize: 10,
+    lineHeight: 16,
+    fontStyle: 'italic',
   },
   intelText: {
-    color: '#718096',
-    fontSize: 8,
-    fontFamily: 'monospace',
-    marginBottom: 2,
+    color: '#3a5060',
+    fontSize: 9,
   },
 
   // SELECTION CARD
   selectionOverlay: {
     position: 'absolute',
-    bottom: 6,
-    right: 16,
+    bottom: 42,
+    right: 0,
   },
   selectionCard: {
     backgroundColor: 'rgba(6,14,26,0.95)',
@@ -468,59 +678,185 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'monospace',
   },
-  nukeBtnMap: {
-    backgroundColor: 'rgba(180,30,30,0.2)',
+  // SPECIAL ACTIONS BAR (on selection card)
+  specialActionsBar: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+  },
+  specialBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
     paddingVertical: 7,
-    marginTop: 10,
-    borderRadius: 2,
+    paddingHorizontal: 8,
+    borderRadius: 3,
     borderWidth: 1,
+  },
+  specialBtnNuke: {
+    backgroundColor: 'rgba(231,76,60,0.15)',
     borderColor: '#e74c3c',
   },
-  nukeTextMap: {
+  specialBtnOrbital: {
+    backgroundColor: 'rgba(41,128,185,0.15)',
+    borderColor: '#2980b9',
+  },
+  specialBtnBlackout: {
+    backgroundColor: 'rgba(155,89,182,0.15)',
+    borderColor: '#9b59b6',
+  },
+  specialBtnDisabled: {
+    opacity: 0.3,
+    borderColor: '#333',
+    backgroundColor: 'transparent',
+  },
+  specialBtnIcon: { fontSize: 14 },
+  specialBtnLabel: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    lineHeight: 12,
+  },
+  specialBtnSub: {
+    color: '#aaa',
+    fontSize: 7,
+    fontWeight: '700',
+  },
+
+  // NUKE STOCKPILE display in top bar
+  nukesItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(231,76,60,0.5)',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(231,76,60,0.1)',
+  },
+  nukesUsed: {
+    opacity: 0.35,
+    borderColor: '#333',
+  },
+  nukesIcon: { fontSize: 11 },
+  nukesText: {
+    color: '#e74c3c',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  // NUCLEAR CONFIRMATION MODAL
+  nukeOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center', alignItems: 'center',
+    zIndex: 600,
+  },
+  nukeModal: {
+    width: '80%',
+    backgroundColor: '#0d0608',
+    borderWidth: 2,
+    borderColor: '#e74c3c',
+    borderRadius: 4,
+    padding: 20,
+    alignItems: 'center',
+  },
+  nukeModalWarning: {
     color: '#e74c3c',
     fontSize: 10,
     fontWeight: '900',
-    marginLeft: 6,
-    letterSpacing: 1,
+    letterSpacing: 2,
+    marginBottom: 10,
   },
+  nukeModalTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  nukeModalInfo: {
+    width: '100%',
+    backgroundColor: 'rgba(231,76,60,0.08)',
+    borderRadius: 3,
+    padding: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  nukeModalDetail: { color: '#c0c0c0', fontSize: 11, fontWeight: '700' },
+  nukeModalTech:   { color: '#2ecc71', fontSize: 10, fontWeight: '700' },
+  nukeModalWarn:   { color: '#e74c3c', fontSize: 10, fontStyle: 'italic' },
+  nukeModalBtns: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  nukeCancelBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 3,
+    borderWidth: 1, borderColor: '#555',
+    alignItems: 'center',
+  },
+  nukeCancelTxt: { color: '#888', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  nukeConfirmBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 3,
+    backgroundColor: '#e74c3c',
+    alignItems: 'center',
+  },
+  nukeConfirmTxt: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
 
-  // BOTTOM NAV — transparent container, GameFrame draws trapezoid tabs on top
+  // BOTTOM NAV — real styled tabs
   bottomNavBar: {
+    height: 38,
+    marginHorizontal: -10,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(6,12,22,0.96)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(52,152,219,0.3)',
+  },
+  navTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 3,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.05)',
+    position: 'relative',
+  },
+  navTabActive: {
+    backgroundColor: 'rgba(41,128,185,0.15)',
+  },
+  navTabDanger: {
+    backgroundColor: 'rgba(180,30,30,0.12)',
+  },
+  navTabIcon: {
+    fontSize: 11,
+    marginBottom: 1,
+  },
+  navTabLabel: {
+    color: '#3a5878',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  navTabLabelActive: {
+    color: '#ffffff',
+  },
+  navTabLabelDanger: {
+    color: '#e74c3c',
+  },
+  navTabUnderline: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
-    right: 0,
-    height: 24,
-    backgroundColor: 'transparent',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-  },
-  // Invisible touch targets — same trapezoid size as GameFrame draws
-  navItem: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    width: 100, // matching TAB_W
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 4, // slight adjustment to push text to the bottom wide part
-  },
-  navItemActive: {},
-  navText: {
-    color: '#64748b',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-  navTextActive: {
-    color: '#ffffff',
+    left: '15%',
+    right: '15%',
+    height: 2,
+    backgroundColor: '#3498db',
+    borderRadius: 1,
   },
 
 
