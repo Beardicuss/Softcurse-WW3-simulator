@@ -4,11 +4,13 @@ import {
     ScrollView, Dimensions
 } from 'react-native';
 import useGameStore from '../store/useGameStore';
+import { useTranslation } from '../i18n/i18n';
 import { TECH_BRANCHES, TECH_NODES, TECH_BY_ID, isExcluded } from '../data/techTree';
 
 const { width, height } = Dimensions.get('window');
 
 const ResearchPanel = ({ onClose }) => {
+    const t = useTranslation();
     const { factions, playerFaction, researchTech } = useGameStore();
     const fac = factions[playerFaction];
     const unlocked = fac?.unlockedTech || [];

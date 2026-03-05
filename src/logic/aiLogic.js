@@ -73,9 +73,9 @@ export function strategicScore(fromId, toId, regions, aiKey, playerFaction, aiMe
     // ── Resource value of target ───────────────────────────────────────────
     const rv = REGION_VALUE[toId];
     if (rv) {
-        score += rv.oil      * 0.8; // oil is valuable
-        score += rv.industry * 0.6; // industry slightly less urgent
-        if (rv.chokepoint) score += 22;
+        score += rv.oil      * 1.2; // oil is strategically critical
+        score += rv.industry * 0.9; // industry drives long-term power
+        if (rv.chokepoint) score += 30; // chokepoints are worth fighting hard for
     }
 
     // ── Dynamic resource value (from live region state) ────────────────────
@@ -87,7 +87,7 @@ export function strategicScore(fromId, toId, regions, aiKey, playerFaction, aiMe
     // ── Encirclement bonus — target surrounded by us ───────────────────────
     const surroundCount = (ADJ[toId] || [])
         .filter(n => regions[n]?.faction === aiKey).length;
-    score += surroundCount * 12;
+    score += Math.min(surroundCount, 3) * 12; // capped at 3 — prevents cheap-tile blob chasing
 
     // ── Targeting the player ───────────────────────────────────────────────
     if (to.faction === playerFaction) {

@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import { Shield, Shuffle, Skull, Zap, Activity, HardHat, AlertTriangle, Crosshair } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
+import { useTranslation } from '../i18n/i18n';
 import { FD } from '../data/mapData';
 
 const { height } = Dimensions.get('window');
 
 const DiplomacyPanel = ({ onClose }) => {
+    const t = useTranslation();
     const { factions, playerFaction, regions } = useGameStore();
     const factionData = factions[playerFaction];
 

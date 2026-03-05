@@ -1,11 +1,14 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
-import { Shield, Rocket, Plane, Zap, Activity, HardHat } from 'lucide-react-native';
+import { Shield, Rocket, Plane, Zap, Activity, HardHat, Anchor } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
+import { COASTAL_REGIONS } from '../logic/gameLogic';
+import { useTranslation } from '../i18n/i18n';
 
 const { height } = Dimensions.get('window');
 
 const EconomyPanel = ({ onClose }) => {
+    const t = useTranslation();
     const { factions, playerFaction, regions, selectedRegionId, buildUnit } = useGameStore();
 
     const factionData = factions[playerFaction];
@@ -75,10 +78,25 @@ const EconomyPanel = ({ onClose }) => {
             </View>
 
             <View style={styles.unitsContainer}>
-                {renderUnitCard('infantry', <Shield color="#fff" size={20} />, 'INFANTRY DIVISION', 50, 20, 0, 1, 2)}
-                {renderUnitCard('armor', <Rocket color="#fff" size={20} />, 'ARMORED BRIGADE', 150, 50, 10, 3, 2)}
-                {renderUnitCard('air', <Plane color="#fff" size={20} />, 'AIR SQUADRON', 300, 100, 25, 5, 0)}
+                {renderUnitCard('infantry',  <Shield color="#fff" size={20} />,  'INFANTRY DIVISION',  50,  20,  0,  1, 2)}
+                {renderUnitCard('armor',     <Rocket color="#fff" size={20} />,  'ARMORED BRIGADE',    150, 50,  10, 3, 2)}
+                {renderUnitCard('air',       <Plane  color="#fff" size={20} />,  'AIR SQUADRON',       300, 100, 25, 5, 0)}
             </View>
+
+            {/* Naval Units — coastal regions only */}
+            {selectedRegion && COASTAL_REGIONS.has(selectedRegionId) && (
+                <>
+                    <Text style={styles.navalHeader}>⚓ NAVAL UNITS — COASTAL REGION</Text>
+                    <View style={styles.unitsContainer}>
+                        {renderUnitCard('destroyer', <Anchor color="#3498db" size={20} />, 'DESTROYER', 200, 60, 15, 4, 3)}
+                        {renderUnitCard('submarine', <Anchor color="#9b59b6" size={20} />, 'SUBMARINE', 250, 80, 20, 6, 1)}
+                        {renderUnitCard('carrier',   <Anchor color="#e67e22" size={20} />, 'CARRIER',   500, 150, 30, 2, 5)}
+                    </View>
+                </>
+            )}
+            {selectedRegion && !COASTAL_REGIONS.has(selectedRegionId) && selectedRegion.faction === playerFaction && (
+                <Text style={styles.navalLocked}>🌊 Naval units require a coastal region</Text>
+            )}
         </View>
     );
 };
@@ -185,7 +203,23 @@ const styles = StyleSheet.create({
         fontSize: 10,
         marginTop: 5,
         fontStyle: 'italic',
-    }
+    },
+    navalHeader: {
+        color: '#3498db',
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 2,
+        marginTop: 16,
+        marginBottom: 8,
+        paddingLeft: 4,
+    },
+    navalLocked: {
+        color: '#445566',
+        fontSize: 10,
+        marginTop: 12,
+        fontStyle: 'italic',
+        textAlign: 'center',
+    },
 });
 
 export default EconomyPanel;

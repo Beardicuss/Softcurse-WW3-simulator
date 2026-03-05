@@ -10,11 +10,16 @@ import {
 } from 'react-native';
 import { Play, Settings, BookOpen, Clock, ShieldAlert } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
+import { useTranslation } from '../i18n/i18n';
 
 const { width } = Dimensions.get('window');
 
 const MainMenuView = () => {
+    const t = useTranslation();
     const setUiMode = useGameStore(s => s.setUiMode);
+    const setGameMode = useGameStore(s => s.setGameMode);
+    const [showModeSelect, setShowModeSelect] = React.useState(false);
+    const gameMode = useGameStore(s => s.gameMode);
     const hasSave = useGameStore(s => s.hasSave);
     const loadGame = useGameStore(s => s.loadGame);
 
@@ -48,17 +53,17 @@ const MainMenuView = () => {
             <View style={styles.content}>
                 <View style={styles.header}>
                     <ShieldAlert color="#3a9eff" size={32} opacity={0.8} />
-                    <Text style={styles.title}>GLOBAL COLLAPSE</Text>
+                    <Text style={styles.title}>{t('menu.subtitle')}</Text>
                     <Text style={styles.subtitle}>COMMAND & CONTROL CENTER</Text>
                 </View>
 
                 <View style={styles.menuContainer}>
                     <Animated.View style={{ opacity: fadeAnim1, transform: [{ translateX: fadeAnim1.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}>
-                        <TouchableOpacity style={styles.mainButton} onPress={() => setUiMode('FACTION')} activeOpacity={0.8}>
+                        <TouchableOpacity style={styles.mainButton} onPress={() => setShowModeSelect(true)} activeOpacity={0.8}>
                             <View style={styles.accentBar} />
                             <Play color="#fff" size={20} fill="#fff" />
                             <View style={styles.buttonInfo}>
-                                <Text style={styles.buttonTitle}>NEW CAMPAIGN</Text>
+                                <Text style={styles.buttonTitle}>{t('menu.newGame')}</Text>
                                 <Text style={styles.buttonDesc}>Initiate global mobilization protocols</Text>
                             </View>
                         </TouchableOpacity>
@@ -79,7 +84,7 @@ const MainMenuView = () => {
                     <Animated.View style={{ opacity: fadeAnim3, transform: [{ translateX: fadeAnim3.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}>
                         <TouchableOpacity style={styles.menuButton} activeOpacity={0.8} onPress={() => setUiMode('SETTINGS')}>
                             <Settings color="#3a9eff" size={18} opacity={0.8} />
-                            <Text style={styles.menuButtonText}>SETTINGS</Text>
+                            <Text style={styles.menuButtonText}>{t('menu.settings')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
 
@@ -96,6 +101,34 @@ const MainMenuView = () => {
                     <Text style={styles.copyright}>© 2026 SOFTCURSE INTERACTIVE</Text>
                 </View>
             </View>
+
+            {/* Game Mode Selector Modal */}
+            {showModeSelect && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 999, padding: 32 }}>
+                    <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 3, marginBottom: 6 }}>SELECT CAMPAIGN TYPE</Text>
+                    <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 4, marginBottom: 32 }}>GAME MODE</Text>
+                    {[
+                        { id: 'campaign', label: 'CAMPAIGN', sub: 'Standard WW3 scenario. Control 60% to win.', color: '#3a9eff' },
+                        { id: 'blitz',    label: 'BLITZ',    sub: 'Fast pace. 40% control wins. AI is very aggressive.', color: '#e67e22' },
+                        { id: 'survival', label: 'SURVIVAL', sub: 'Start with 1 region. Two AI factions already at war.', color: '#e74c3c' },
+                    ].map(mode => (
+                        <TouchableOpacity
+                            key={mode.id}
+                            style={{ width: '100%', marginBottom: 12, padding: 18, borderWidth: 1,
+                                borderColor: gameMode === mode.id ? mode.color : '#2c3a44',
+                                backgroundColor: gameMode === mode.id ? `${mode.color}22` : 'transparent' }}
+                            onPress={() => { setGameMode(mode.id); setShowModeSelect(false); setUiMode('FACTION'); }}
+                        >
+                            <Text style={{ color: mode.color, fontSize: 14, fontWeight: '900', letterSpacing: 3, marginBottom: 4 }}>{mode.label}</Text>
+                            <Text style={{ color: '#8090a0', fontSize: 11 }}>{mode.sub}</Text>
+                        </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity style={{ marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2c3a44' }}
+                        onPress={() => setShowModeSelect(false)}>
+                        <Text style={{ color: '#5f727d', letterSpacing: 2, fontSize: 12 }}>CANCEL</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 };

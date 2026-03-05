@@ -3,10 +3,50 @@ import { REGIONS, ADJ, FD } from '../data/mapData';
 export const INITIAL_DATE = new Date(2026, 4, 1); // May 1, 2026
 
 export const UNIT_STATS = {
-    infantry: { atk: 1, def: 2, cost: 1, oil: 0 },
-    armor: { atk: 3, def: 2, cost: 3, oil: 1 },
-    air: { atk: 5, def: 0, cost: 5, oil: 2 }
+    infantry:   { atk: 1,  def: 2,  cost: 1,  oil: 0 },
+    armor:      { atk: 3,  def: 2,  cost: 3,  oil: 1 },
+    air:        { atk: 5,  def: 0,  cost: 5,  oil: 2 },
+    // Naval units — only buildable in coastal regions, provide sea-lane bonuses
+    destroyer:  { atk: 4,  def: 3,  cost: 4,  oil: 2 },  // fast, anti-sub
+    submarine:  { atk: 6,  def: 1,  cost: 5,  oil: 3 },  // high damage, fragile
+    carrier:    { atk: 2,  def: 5,  cost: 8,  oil: 4 },  // def powerhouse, boosts air atk
 };
+
+// Coastal regions — can build naval units
+export const COASTAL_REGIONS = new Set([
+    'alaska','usa','mexico','caribb','colombia','brazil','argentina',
+    'greenland','uk','france','spain','italy','balkans','scandinavia',
+    'n_africa','w_africa','e_africa','s_africa',
+    'turkey','iran','arabia','israel',
+    'india','se_asia','indonesia','china_s','korea','japan','taiwan',
+    'australia','nz','pacific_i','russia_e','siberia',
+]);
+
+// ── WEATHER SYSTEM ─────────────────────────────────────────────────────────────
+export const WEATHER_TYPES = [
+    { id: 'clear',      label: 'Clear',        emoji: '☀️',  atkMod: 1.0,  defMod: 1.0,  moveMod: 1.0  },
+    { id: 'rain',       label: 'Rain',         emoji: '🌧',  atkMod: 0.85, defMod: 0.95, moveMod: 0.85 },
+    { id: 'storm',      label: 'Storm',        emoji: '⛈',  atkMod: 0.70, defMod: 1.10, moveMod: 0.70 },
+    { id: 'snow',       label: 'Blizzard',     emoji: '❄️',  atkMod: 0.75, defMod: 1.05, moveMod: 0.60 },
+    { id: 'heatwave',   label: 'Heatwave',     emoji: '🌡',  atkMod: 0.90, defMod: 0.90, moveMod: 0.95 },
+    { id: 'fog',        label: 'Dense Fog',    emoji: '🌫',  atkMod: 0.80, defMod: 1.15, moveMod: 0.80 },
+];
+
+export function rollWeather(currentWeather, turn) {
+    // Weather has inertia — 60% chance to stay the same
+    if (currentWeather && Math.random() < 0.60) return currentWeather;
+    const weights = [40, 20, 10, 10, 10, 10]; // clear is most common
+    let rand = Math.random() * 100;
+    for (let i = 0; i < WEATHER_TYPES.length; i++) {
+        rand -= weights[i];
+        if (rand <= 0) return WEATHER_TYPES[i].id;
+    }
+    return 'clear';
+}
+
+export function getWeather(id) {
+    return WEATHER_TYPES.find(w => w.id === id) || WEATHER_TYPES[0];
+}
 
 export function initGame() {
     const rs = {};
@@ -49,6 +89,7 @@ export function initGame() {
             alertLevel: 1,
             techPoints: 3,        // starting research points
             unlockedTech: [],     // array of tech node IDs
+            spyCharges: 2,        // spy/recon action charges (replenish each 5 turns)
         };
     });
 
@@ -76,22 +117,48 @@ export function calculateIncome(factionKey, regions, techMods = {}, enemyDebuffM
 }
 
 export function calculatePower(region, isAttacking = true) {
-    const { infantry = 0, armor = 0, air = 0 } = region;
+    const { infantry = 0, armor = 0, air = 0, destroyer = 0, submarine = 0, carrier = 0 } = region;
     if (isAttacking) {
-        return (infantry * UNIT_STATS.infantry.atk) + (armor * UNIT_STATS.armor.atk) + (air * UNIT_STATS.air.atk);
+        return (infantry  * UNIT_STATS.infantry.atk)  +
+               (armor     * UNIT_STATS.armor.atk)     +
+               (air       * UNIT_STATS.air.atk)       +
+               (destroyer * UNIT_STATS.destroyer.atk) +
+               (submarine * UNIT_STATS.submarine.atk) +
+               (carrier   * UNIT_STATS.carrier.atk);
     } else {
-        return (infantry * UNIT_STATS.infantry.def) + (armor * UNIT_STATS.armor.def) + (air * UNIT_STATS.air.def);
+        // Carrier boosts adjacent air defence
+        const carrierAirBonus = carrier * 2;
+        return (infantry  * UNIT_STATS.infantry.def)  +
+               (armor     * UNIT_STATS.armor.def)     +
+               (destroyer * UNIT_STATS.destroyer.def) +
+               (submarine * UNIT_STATS.submarine.def) +
+               (carrier   * UNIT_STATS.carrier.def)   +
+               carrierAirBonus;
     }
 }
 
 export function applyCasualties(region, damage) {
     let remainingDamage = damage;
-    let { infantry = 0, armor = 0, air = 0 } = region;
+    let { infantry = 0, armor = 0, air = 0, destroyer = 0, submarine = 0, carrier = 0 } = region;
 
     // Infantry dies first (1 hp each)
     const infLoss = Math.min(infantry, remainingDamage);
     infantry -= infLoss;
     remainingDamage -= infLoss;
+
+    // Submarine dies next (fragile — 1 hp)
+    if (remainingDamage > 0) {
+        const subLoss = Math.min(submarine, remainingDamage);
+        submarine -= subLoss;
+        remainingDamage -= subLoss;
+    }
+
+    // Destroyer (2 hp each)
+    if (remainingDamage > 0) {
+        const destLoss = Math.min(destroyer, Math.floor(remainingDamage / 2));
+        destroyer -= destLoss;
+        remainingDamage -= destLoss * 2;
+    }
 
     // Armor dies next (3 hp each)
     if (remainingDamage > 0) {
@@ -100,18 +167,30 @@ export function applyCasualties(region, damage) {
         remainingDamage -= armorLoss * 3;
     }
 
-    // Air dies last (2 hp each)
+    // Air (2 hp each)
     if (remainingDamage > 0) {
         const airLoss = Math.min(air, Math.floor(remainingDamage / 2));
         air -= airLoss;
+        remainingDamage -= airLoss * 2;
     }
 
-    return { infantry, armor, air };
+    // Carrier dies last (tough — 4 hp)
+    if (remainingDamage > 0) {
+        const carrierLoss = Math.min(carrier, Math.floor(remainingDamage / 4));
+        carrier -= carrierLoss;
+    }
+
+    return { infantry, armor, air, destroyer, submarine, carrier };
 }
 
-export function doCombat(attRegion, defRegion, ab, db, attackerStability = 100, defenderStability = 100, atkMods = {}, defMods = {}) {
+export function doCombat(attRegion, defRegion, ab, db, attackerStability = 100, defenderStability = 100, atkMods = {}, defMods = {}, weather = null) {
     const stabilityModA = attackerStability / 100;
     const stabilityModD = defenderStability / 100;
+
+    // Weather modifiers
+    const weatherData = weather ? (WEATHER_TYPES.find(w => w.id === weather) || WEATHER_TYPES[0]) : WEATHER_TYPES[0];
+    const weatherAtkMod = weatherData.atkMod;
+    const weatherDefMod = weatherData.defMod;
 
     const attackingForces = {
         infantry: Math.max(0, attRegion.infantry - 1),
@@ -129,8 +208,8 @@ export function doCombat(attRegion, defRegion, ab, db, attackerStability = 100, 
     const enemyAtkDebuff = defMods.enemyAtkDebuff || 0; // defender's EW debuffing attacker
 
     // Effective multipliers
-    const effectiveAtkMult = ab * atkTechBonus * (1 - enemyAtkDebuff) * stabilityModA;
-    const effectiveDefMult = db * defTechBonus * (1 - defPenetration) * stabilityModD;
+    const effectiveAtkMult = ab * atkTechBonus * (1 - enemyAtkDebuff) * stabilityModA * weatherAtkMod;
+    const effectiveDefMult = db * defTechBonus * (1 - defPenetration) * stabilityModD * weatherDefMod;
 
     // Calculate raw power (armor gets its own multiplier)
     const baseAtkPower =

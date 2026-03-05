@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import { ChevronRight, ShieldAlert, Crosshair, Map, Shield } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
+import { useTranslation } from '../i18n/i18n';
 import { FD } from '../data/mapData';
 
 const FactionSelectView = ({ onStart }) => {
+    const t = useTranslation();
     const setUiMode = useGameStore(s => s.setUiMode);
     const [selected, setSelected] = useState(null);
 

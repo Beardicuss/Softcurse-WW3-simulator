@@ -17,7 +17,21 @@ const MAP_BASE_HEIGHT = 100;
 const MAP_SCALE = SCREEN_WIDTH / MAP_BASE_WIDTH;
 
 const GameMap = () => {
-    const { regions, playerFaction, selectRegion, selectedRegionId } = useGameStore();
+    // Selective subscriptions — only re-render when these specific fields change
+    const regions         = useGameStore(s => s.regions);
+    const playerFaction   = useGameStore(s => s.playerFaction);
+    const selectRegion    = useGameStore(s => s.selectRegion);
+    const selectedRegionId = useGameStore(s => s.selectedRegionId);
+    const visibleRegions  = useGameStore(s => s.visibleRegions);
+
+    // Memoized faction fill colors — recomputed only when regions change
+    const regionFactionColors = useMemo(() => {
+        const out = {};
+        Object.entries(regions || {}).forEach(([id, r]) => {
+            out[id] = getFactionFill(r.faction);
+        });
+        return out;
+    }, [regions]);
 
     const mapRenderedHeight = MAP_BASE_HEIGHT * MAP_SCALE;
     const estCanvasHeight = SCREEN_HEIGHT * 0.7;
@@ -64,7 +78,12 @@ const GameMap = () => {
             const d = Math.hypot(lx - projectX(r.x), ly - projectY(r.y));
             if (d < minDist) { minDist = d; closest = r.id; }
         });
-        if (closest) selectRegion(closest);
+        if (closest) {
+            // Allow tapping any visible region; hidden ones can't be selected
+            if (!visibleRegions.size || visibleRegions.has(closest)) {
+                selectRegion(closest);
+            }
+        }
     });
 
     const composed = Gesture.Simultaneous(pinchGesture, panGesture, tapGesture);
@@ -224,14 +243,16 @@ const GameMap = () => {
                     <Group>
                         {regionSkiaPaths.map(entry => {
                             if (!entry.skiPath) return null;
+                            const isVisible = !visibleRegions?.size || visibleRegions.has(entry.id);
                             const gameRegion = regions[entry.id];
                             const liveFaction = gameRegion?.faction;
-                            const fillColor = liveFaction && FD[liveFaction]
-                                ? getFactionFill(liveFaction)
-                                : entry.fill;
-                            const strokeColor = liveFaction && FD[liveFaction]
-                                ? FD[liveFaction].color
-                                : entry.stroke;
+                            // Fog of war: unknown regions shown in dark grey
+                            const fillColor = isVisible
+                                ? (liveFaction && FD[liveFaction] ? getFactionFill(liveFaction) : entry.fill)
+                                : 'rgba(8,12,18,0.85)';
+                            const strokeColor = isVisible
+                                ? (liveFaction && FD[liveFaction] ? FD[liveFaction].color : entry.stroke)
+                                : '#1a2030';
                             return (
                                 <Group key={`map-${entry.id}`}>
                                     <Path path={entry.skiPath} color={fillColor} />
@@ -260,13 +281,25 @@ const GameMap = () => {
                         const isSel = selectedRegionId === r.id;
                         const g = regionGeometry[r.id];
                         const up = unitPaths[r.id];
+                        const isVisible = !visibleRegions.size || visibleRegions.has(r.id);
 
                         let isTarget = false;
                         if (selectedRegionId && selectedRegionId !== r.id) {
                             const from = regions[selectedRegionId];
-                            if (from?.faction === playerFaction && faction !== playerFaction) {
+                            if (from?.faction === playerFaction && faction !== playerFaction && isVisible) {
                                 isTarget = (ADJ[selectedRegionId] || []).includes(r.id);
                             }
+                        }
+
+                        // FOG OF WAR: render a minimal dark hex for hidden regions
+                        if (!isVisible) {
+                            return (
+                                <Group key={r.id}>
+                                    <Path path={g.hexOut} color="rgba(4,8,14,0.80)" />
+                                    <Path path={g.hexOut} color="#0d1a26" style="stroke" strokeWidth={0.5} />
+                                    <Path path={g.hexIn}  color="rgba(6,10,18,0.70)" />
+                                </Group>
+                            );
                         }
 
                         return (
