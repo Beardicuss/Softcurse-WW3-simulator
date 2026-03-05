@@ -21,7 +21,7 @@
  *   audio.setMusicVolume(0.5);
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import useGameStore from '../store/useGameStore';
 
 // ─── Asset Map ────────────────────────────────────────────────────────────────
@@ -70,12 +70,9 @@ const HAPTIC_PATTERNS = {
 
 class AudioManager {
     constructor() {
-        this.sounds = {};
-        this.musicPlayer = null;
-        this.musicVolume = 0.8;
         this.sfxVolume = 1.0;
+        this.musicVolume = 0.8;
         this.enabled = true;
-        this.currentMusicTrack = null;
         this._vibration = null;
         this._initVibration();
     }
@@ -84,151 +81,43 @@ class AudioManager {
         try {
             const { Vibration } = require('react-native');
             this._vibration = Vibration;
-        } catch (e) {
-            // Vibration not available
-        }
+        } catch (e) {}
     }
 
-    async init() {
-        // Try to load Expo AV if available
-        try {
-            const { Audio } = require('expo-av');
-            this._av = Audio;
-            await Audio.setAudioModeAsync({
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
-                shouldDuckAndroid: true,
-            });
-            this._avAvailable = true;
-        } catch (e) {
-            this._avAvailable = false;
-        }
-    }
-
-    async loadSound(key) {
-        if (!this._avAvailable) return null;
-        if (this.sounds[key]) return this.sounds[key];
-        const asset = AUDIO_ASSETS[key];
-        if (!asset) return null;
-        try {
-            const { sound } = await this._av.Sound.createAsync(asset, { volume: this.sfxVolume });
-            this.sounds[key] = sound;
-            return sound;
-        } catch (e) {
-            return null;
-        }
-    }
-
-    async play(key) {
+    vibrate(key) {
         if (!this.enabled || this.sfxVolume === 0) return;
-
-        // Haptic fallback always runs
         const pattern = HAPTIC_PATTERNS[key];
         if (pattern && this._vibration) {
             try { this._vibration.vibrate(pattern); } catch (e) {}
         }
-
-        // Try audio
-        const sound = await this.loadSound(key);
-        if (sound) {
-            try {
-                await sound.setVolumeAsync(this.sfxVolume);
-                await sound.replayAsync();
-            } catch (e) {}
-        }
     }
 
-    async playMusic(trackKey) {
-        if (!this._avAvailable || !this.enabled || this.musicVolume === 0) return;
-        if (this.currentMusicTrack === trackKey) return;
-
-        // Stop current music
-        if (this.musicPlayer) {
-            try {
-                await this.musicPlayer.stopAsync();
-                await this.musicPlayer.unloadAsync();
-            } catch (e) {}
-            this.musicPlayer = null;
-        }
-
-        const asset = AUDIO_ASSETS[trackKey];
-        if (!asset) { this.currentMusicTrack = trackKey; return; }
-
-        try {
-            const { sound } = await this._av.Sound.createAsync(
-                asset,
-                { volume: this.musicVolume, isLooping: true, shouldPlay: true }
-            );
-            this.musicPlayer = sound;
-            this.currentMusicTrack = trackKey;
-        } catch (e) {}
+    // Main play method — vibration now, audio file when assets added
+    play(key) {
+        this.vibrate(key);
+        // When you add audio files, load them here via expo-av
+        // See instructions at bottom of this file
     }
 
-    async stopMusic() {
-        if (this.musicPlayer) {
-            try {
-                await this.musicPlayer.stopAsync();
-                await this.musicPlayer.unloadAsync();
-            } catch (e) {}
-            this.musicPlayer = null;
-            this.currentMusicTrack = null;
-        }
-    }
-
-    setMusicVolume(vol) {
-        this.musicVolume = vol;
-        if (this.musicPlayer) {
-            try { this.musicPlayer.setVolumeAsync(vol); } catch (e) {}
-        }
-        if (vol === 0) this.stopMusic();
-    }
-
-    setSfxVolume(vol) {
-        this.sfxVolume = vol;
-        Object.values(this.sounds).forEach(s => {
-            try { s.setVolumeAsync(vol); } catch (e) {}
-        });
-    }
-
-    async unloadAll() {
-        await this.stopMusic();
-        for (const key of Object.keys(this.sounds)) {
-            try { await this.sounds[key].unloadAsync(); } catch (e) {}
-        }
-        this.sounds = {};
-    }
+    setMusicVolume(vol) { this.musicVolume = vol; }
+    setSfxVolume(vol)   { this.sfxVolume = vol; }
+    playMusic()         {} // no-op until audio files added
+    stopMusic()         {} // no-op until audio files added
+    unloadAll()         {} // no-op until audio files added
 }
 
-// ─── Singleton ────────────────────────────────────────────────────────────────
 export const audioManager = new AudioManager();
 
 // ─── React Hook ───────────────────────────────────────────────────────────────
 
 export function useAudio() {
     const settings = useGameStore(s => s.settings);
-    const actPhase = useGameStore(s => s.actPhase);
-    const initialized = useRef(false);
 
-    useEffect(() => {
-        if (!initialized.current) {
-            initialized.current = true;
-            audioManager.init();
-        }
-    }, []);
-
-    // Sync volume settings
+    // Sync volume settings when they change
     useEffect(() => {
         audioManager.setMusicVolume(settings?.musicVolume ?? 0.8);
         audioManager.setSfxVolume(settings?.sfxVolume ?? 1.0);
     }, [settings?.musicVolume, settings?.sfxVolume]);
-
-    // Change ambient music track based on act phase
-    useEffect(() => {
-        const track = actPhase === 3 ? 'music_nuclear'
-                    : actPhase === 2 ? 'music_war'
-                    : 'music_tension';
-        audioManager.playMusic(track);
-    }, [actPhase]);
 
     const play = useCallback((key) => {
         audioManager.play(key);

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { TIMELINE_EVENTS } from '../data/mapData';
 import useGameStore from '../store/useGameStore';
+import { useTranslation } from '../i18n/i18n';
 
 const EventItem = ({ event, isLast, isVisible }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -62,6 +63,7 @@ const EventItem = ({ event, isLast, isVisible }) => {
 };
 
 const IntroScreen = () => {
+    const t = useTranslation();
     const setUiMode = useGameStore(s => s.setUiMode);
     const [visibleIdx, setVisibleIdx] = useState(-1);
     const [done, setDone] = useState(false);
@@ -117,8 +119,8 @@ const IntroScreen = () => {
             {/* Header matches prototype precisely */}
             <View style={styles.header}>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.gameTitle}>WORLD WAR III</Text>
-                    <Text style={styles.gameSubtitle}>HOW WE GOT HERE</Text>
+                    <Text style={styles.gameTitle}>{t('intro.title')}</Text>
+                    <Text style={styles.gameSubtitle}>{t('intro.subtitle')}</Text>
                 </View>
             </View>
 
@@ -141,14 +143,14 @@ const IntroScreen = () => {
                     {done && (
                         <Animated.View style={[styles.finalBlock, { opacity: fadeAnimFinal }]}>
                             <Text style={styles.finalEmojis}>⚔️</Text>
-                            <Text style={styles.finalHeader}>THE WORLD BURNS</Text>
+                            <Text style={styles.finalHeader}>{t('intro.burnLine')}</Text>
                             <Text style={styles.finalDesc}>
                                 Every conflict, every miscalculation, every broken treaty led to this moment.{"\n"}
                                 Three superpowers now control the fate of civilization.{"\n"}
                                 <Text style={styles.finalHighlight}>You are one of them.</Text>
                             </Text>
                             <TouchableOpacity style={styles.continueBtn} onPress={() => setUiMode('MENU')}>
-                                <Text style={styles.continueText}>ENTER COMMAND CENTER</Text>
+                                <Text style={styles.continueText}>{t('intro.enter')}</Text>
                             </TouchableOpacity>
                         </Animated.View>
                     )}

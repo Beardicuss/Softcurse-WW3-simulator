@@ -54,7 +54,7 @@ const MainMenuView = () => {
                 <View style={styles.header}>
                     <ShieldAlert color="#3a9eff" size={32} opacity={0.8} />
                     <Text style={styles.title}>{t('menu.subtitle')}</Text>
-                    <Text style={styles.subtitle}>COMMAND & CONTROL CENTER</Text>
+                    <Text style={styles.subtitle}>{t('menu.header')}</Text>
                 </View>
 
                 <View style={styles.menuContainer}>
@@ -64,7 +64,7 @@ const MainMenuView = () => {
                             <Play color="#fff" size={20} fill="#fff" />
                             <View style={styles.buttonInfo}>
                                 <Text style={styles.buttonTitle}>{t('menu.newGame')}</Text>
-                                <Text style={styles.buttonDesc}>Initiate global mobilization protocols</Text>
+                                <Text style={styles.buttonDesc}>{t('menu.headerSub')}</Text>
                             </View>
                         </TouchableOpacity>
                     </Animated.View>
@@ -77,7 +77,7 @@ const MainMenuView = () => {
                             onPress={() => loadGame()}
                         >
                             <Clock color={hasSave ? "#3a9eff" : "#555"} size={18} opacity={hasSave ? 0.8 : 1} />
-                            <Text style={[styles.menuButtonText, !hasSave && { color: '#555' }]}>LOAD / CONTINUE</Text>
+                            <Text style={[styles.menuButtonText, !hasSave && { color: '#555' }]}>{t('menu.loadContinue')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
 
@@ -91,7 +91,7 @@ const MainMenuView = () => {
                     <Animated.View style={{ opacity: fadeAnim4, transform: [{ translateX: fadeAnim4.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}>
                         <TouchableOpacity style={styles.menuButton} activeOpacity={0.8}>
                             <BookOpen color="#3a9eff" size={18} opacity={0.8} />
-                            <Text style={styles.menuButtonText}>CREDITS / ABOUT</Text>
+                            <Text style={styles.menuButtonText}>{t('menu.creditsAbout')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -105,12 +105,12 @@ const MainMenuView = () => {
             {/* Game Mode Selector Modal */}
             {showModeSelect && (
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 999, padding: 32 }}>
-                    <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 3, marginBottom: 6 }}>SELECT CAMPAIGN TYPE</Text>
-                    <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 4, marginBottom: 32 }}>GAME MODE</Text>
+                    <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 3, marginBottom: 6 }}>{t('menu.selectMode')}</Text>
+                    <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 4, marginBottom: 32 }}>{t('menu.gameMode')}</Text>
                     {[
-                        { id: 'campaign', label: 'CAMPAIGN', sub: 'Standard WW3 scenario. Control 60% to win.', color: '#3a9eff' },
-                        { id: 'blitz',    label: 'BLITZ',    sub: 'Fast pace. 40% control wins. AI is very aggressive.', color: '#e67e22' },
-                        { id: 'survival', label: 'SURVIVAL', sub: 'Start with 1 region. Two AI factions already at war.', color: '#e74c3c' },
+                        { id: 'campaign', label: t('mode.campaign.label'), sub: t('mode.campaign.sub'), color: '#3a9eff' },
+                        { id: 'blitz',    label: t('mode.blitz.label'),    sub: t('mode.blitz.sub'),    color: '#e67e22' },
+                        { id: 'survival', label: t('mode.survival.label'), sub: t('mode.survival.sub'), color: '#e74c3c' },
                     ].map(mode => (
                         <TouchableOpacity
                             key={mode.id}
@@ -125,7 +125,7 @@ const MainMenuView = () => {
                     ))}
                     <TouchableOpacity style={{ marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2c3a44' }}
                         onPress={() => setShowModeSelect(false)}>
-                        <Text style={{ color: '#5f727d', letterSpacing: 2, fontSize: 12 }}>CANCEL</Text>
+                        <Text style={{ color: '#5f727d', letterSpacing: 2, fontSize: 12 }}>{t('menu.cancel')}</Text>
                     </TouchableOpacity>
                 </View>
             )}

@@ -45,7 +45,7 @@ const EconomyPanel = ({ onClose }) => {
                     <Text style={styles.statText}>DEF: {def}</Text>
                 </View>
 
-                {!validRegion && <Text style={styles.errorText}>Select Owned Region</Text>}
+                {!validRegion && <Text style={styles.errorText}>{t('economy.selectRegion')}</Text>}
                 {validRegion && !regionHasInd && <Text style={styles.errorText}>Requires {costI} Industry</Text>}
             </TouchableOpacity>
         );
@@ -54,7 +54,7 @@ const EconomyPanel = ({ onClose }) => {
     return (
         <View style={styles.panel}>
             <View style={styles.header}>
-                <Text style={styles.title}>DEPLOYMENT COMMAND</Text>
+                <Text style={styles.title}>{t('economy.header')}</Text>
                 <TouchableOpacity onPress={onClose}>
                     <Text style={styles.closeBtn}>X</Text>
                 </TouchableOpacity>

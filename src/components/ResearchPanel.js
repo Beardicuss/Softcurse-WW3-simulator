@@ -39,8 +39,8 @@ const ResearchPanel = ({ onClose }) => {
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
-                        <Text style={styles.headerTitle}>RESEARCH & DEVELOPMENT</Text>
-                        <Text style={styles.headerSub}>Advanced Weapons Programs</Text>
+                        <Text style={styles.headerTitle}>{t('research.header')}</Text>
+                        <Text style={styles.headerSub}>{t('research.subtitle')}</Text>
                     </View>
                     <View style={styles.headerRight}>
                         <View style={styles.tpBadge}>

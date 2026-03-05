@@ -22,8 +22,8 @@ const FactionSelectView = ({ onStart }) => {
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>SELECT ALIGNMENT</Text>
-                    <Text style={styles.subtitle}>Choose your superpower for the impending global conflict</Text>
+                    <Text style={styles.title}>{t('faction.selectAlignment')}</Text>
+                    <Text style={styles.subtitle}>{t('faction.subtitle')}</Text>
                 </View>
 
                 <View style={styles.grid}>
@@ -43,25 +43,25 @@ const FactionSelectView = ({ onStart }) => {
                                 <View style={styles.cardHeader}>
                                     <Text style={styles.flag}>{FD[fk].flag}</Text>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={[styles.factionName, { color: FD[fk].color }]} numberOfLines={1} adjustsFontSizeToFit>{FD[fk].name}</Text>
-                                        <Text style={styles.factionShort}>{fk} COMMAND</Text>
+                                        <Text style={[styles.factionName, { color: FD[fk].color }]} numberOfLines={1} adjustsFontSizeToFit>{t(`faction.${fk.toLowerCase()}.name`)}</Text>
+                                        <Text style={styles.factionShort}>{fk} {t('faction.command')}</Text>
                                     </View>
                                 </View>
 
-                                <Text style={styles.desc}>{FD[fk].desc}</Text>
+                                <Text style={styles.desc}>{t(`faction.${fk.toLowerCase()}.desc`)}</Text>
 
                                 <View style={styles.statsContainer}>
                                     <View style={styles.statBox}>
                                         <Crosshair color="#fff" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={styles.statLine}>ATK: {FD[fk].atk}x</Text>
+                                        <Text style={styles.statLine}>{t('stat.atk')}: {FD[fk].atk}x</Text>
                                     </View>
                                     <View style={styles.statBox}>
                                         <Shield color="#fff" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={styles.statLine}>DEF: {FD[fk].def}x</Text>
+                                        <Text style={styles.statLine}>{t('stat.def')}: {FD[fk].def}x</Text>
                                     </View>
                                     <View style={styles.statBox}>
                                         <ShieldAlert color="#e74c3c" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={[styles.statLine, { color: '#e74c3c' }]}>NUKES: {FD[fk].nukes}</Text>
+                                        <Text style={[styles.statLine, { color: '#e74c3c' }]}>{t('stat.nukes')}: {FD[fk].nukes}</Text>
                                     </View>
                                 </View>
                             </TouchableOpacity>
@@ -74,7 +74,7 @@ const FactionSelectView = ({ onStart }) => {
                         style={styles.backBtn}
                         onPress={() => setUiMode('MENU')}
                     >
-                        <Text style={styles.backText}>BACK</Text>
+                        <Text style={styles.backText}>{t('faction.back')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -84,7 +84,7 @@ const FactionSelectView = ({ onStart }) => {
                             if (selected) onStart(selected);
                         }}
                     >
-                        <Text style={styles.startText}>INITIALIZE DEPLOYMENT</Text>
+                        <Text style={styles.startText}>{t('faction.initialize')}</Text>
                         <ChevronRight color="#fff" size={20} />
                     </TouchableOpacity>
                 </View>

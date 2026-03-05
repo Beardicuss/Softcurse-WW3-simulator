@@ -84,14 +84,14 @@ const DiplomacyPanel = ({ onClose }) => {
     return (
         <View style={styles.panel}>
             <View style={styles.header}>
-                <Text style={styles.title}>ALLIANCE OPERATIONS</Text>
+                <Text style={styles.title}>{t('diplomacy.header')}</Text>
                 <TouchableOpacity onPress={onClose}>
                     <Text style={styles.closeBtn}>X</Text>
                 </TouchableOpacity>
             </View>
 
             <View style={styles.stabRow}>
-                <Text style={styles.stabTitle}>Domestic Stability:</Text>
+                <Text style={styles.stabTitle}>{t('diplomacy.stability')}</Text>
                 <Text style={[styles.stabValue, factionData.stability < 50 ? { color: '#e74c3c' } : { color: '#2ecc71' }]}>
                     {factionData.stability}%
                 </Text>
@@ -104,7 +104,7 @@ const DiplomacyPanel = ({ onClose }) => {
                     <View style={styles.cardHeader}>
                         <Shuffle color="#fff" size={20} />
                         <View>
-                            <Text style={styles.actionTitle}>BLACK MARKET TRADE</Text>
+                            <Text style={styles.actionTitle}>{t('diplomacy.tradeBtn')}</Text>
                             <Text style={styles.actionDesc}>Bypass embargoes. Pay a premium for immediate material reserves.</Text>
                         </View>
                     </View>
@@ -117,7 +117,7 @@ const DiplomacyPanel = ({ onClose }) => {
                         disabled={factionData.funds < 200}
                         onPress={executeTrade}
                     >
-                        <Text style={styles.btnText}>EXECUTE TRADE</Text>
+                        <Text style={styles.btnText}>{t('diplomacy.executeTradeBtn')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -126,7 +126,7 @@ const DiplomacyPanel = ({ onClose }) => {
                     <View style={styles.cardHeader}>
                         <AlertTriangle color="#e67e22" size={20} />
                         <View style={{ flex: 1 }}>
-                            <Text style={[styles.actionTitle, { color: '#e67e22' }]}>CYBER SANCTIONS</Text>
+                            <Text style={[styles.actionTitle, { color: '#e67e22' }]}>{t('diplomacy.sanctionBtn')}</Text>
                             <Text style={styles.actionDesc}>Launch massive SWIFT/cyber attacks to vaporize enemy funds and cripple morale.</Text>
                         </View>
                     </View>
@@ -154,13 +154,13 @@ const DiplomacyPanel = ({ onClose }) => {
                     <View style={styles.cardHeader}>
                         <Crosshair color="#e74c3c" size={20} />
                         <View style={{ flex: 1 }}>
-                            <Text style={[styles.actionTitle, { color: '#e74c3c' }]}>FUND REBEL PROXY</Text>
+                            <Text style={[styles.actionTitle, { color: '#e74c3c' }]}>{t('diplomacy.proxyBtn')}</Text>
                             <Text style={styles.actionDesc}>Arm nationalist militias. Instantly rips a random target region from enemy control, spawning hostiles.</Text>
                         </View>
                     </View>
                     <View style={styles.costRow}>
                         <Text style={styles.costText}>COST: $800</Text>
-                        <Text style={styles.gainText}>IMPACT: MAJOR REBELLION</Text>
+                        <Text style={styles.gainText}>{t('diplomacy.proxyImpact')}</Text>
                     </View>
 
                     <View style={styles.targetRow}>

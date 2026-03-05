@@ -147,6 +147,168 @@ export const TRANSLATIONS = {
   'gameover.actReached':  { en: 'Act reached:',             ru: 'Достигнут акт:' },
   'gameover.regionsHeld': { en: 'Regions held:',            ru: 'Удержано регионов:' },
   'gameover.actLabel':    { en: 'ACT {n}',                  ru: 'АКТ {n}' },
+
+  // ── DIPLOMACY PANEL ────────────────────────────────────────────────────────
+  'diplomacy.header':       { en: 'ALLIANCE OPERATIONS',     ru: 'ОПЕРАЦИИ АЛЬЯНСА' },
+  'diplomacy.stability':    { en: 'Domestic Stability:',     ru: 'Внутренняя стабильность:' },
+  'diplomacy.tradeBtn':     { en: 'BLACK MARKET TRADE',      ru: 'ЧЁРНЫЙ РЫНОК' },
+  'diplomacy.executeTradeBtn': { en: 'EXECUTE TRADE',        ru: 'ВЫПОЛНИТЬ СДЕЛКУ' },
+  'diplomacy.sanctionBtn':  { en: 'CYBER SANCTIONS',         ru: 'КИБЕР-САНКЦИИ' },
+  'diplomacy.proxyBtn':     { en: 'FUND REBEL PROXY',        ru: 'ФИНАНСИРОВАТЬ ПОВСТАНЦЕВ' },
+  'diplomacy.proxyImpact':  { en: 'IMPACT: MAJOR REBELLION', ru: 'ЭФФЕКТ: КРУПНОЕ ВОССТАНИЕ' },
+
+  // ── ECONOMY PANEL ──────────────────────────────────────────────────────────
+  'economy.selectRegion':   { en: 'Select Owned Region',     ru: 'Выберите свой регион' },
+  'economy.header':         { en: 'DEPLOYMENT COMMAND',      ru: 'КОМАНДОВАНИЕ РАЗВЁРТЫВАНИЕМ' },
+  'economy.requiresInd':    { en: 'Requires {n} Industry',   ru: 'Требуется {n} промышленности' },
+
+  // ── FACTION SELECT ─────────────────────────────────────────────────────────
+  'faction.selectAlignment': { en: 'SELECT ALIGNMENT',       ru: 'ВЫБЕРИТЕ СТОРОНУ' },
+  'faction.subtitle':       { en: 'Choose your superpower for the impending global conflict', ru: 'Выберите сверхдержаву для надвигающегося глобального конфликта' },
+  'faction.back':           { en: 'BACK',                    ru: 'НАЗАД' },
+  'faction.initialize':     { en: 'INITIALIZE DEPLOYMENT',   ru: 'ИНИЦИАЛИЗИРОВАТЬ РАЗВЁРТЫВАНИЕ' },
+
+  // ── RESEARCH PANEL ─────────────────────────────────────────────────────────
+  'research.header':        { en: 'RESEARCH & DEVELOPMENT',  ru: 'ИССЛЕДОВАНИЯ И РАЗРАБОТКИ' },
+  'research.subtitle':      { en: 'Advanced Weapons Programs', ru: 'Программы передового вооружения' },
+
+  // ── MAIN MENU ──────────────────────────────────────────────────────────────
+  'menu.header':            { en: 'COMMAND & CONTROL CENTER', ru: 'ЦЕНТР УПРАВЛЕНИЯ И КОНТРОЛЯ' },
+  'menu.headerSub':         { en: 'Initiate global mobilization protocols', ru: 'Инициировать протоколы глобальной мобилизации' },
+  'menu.loadContinue':      { en: 'LOAD / CONTINUE',         ru: 'ЗАГРУЗИТЬ / ПРОДОЛЖИТЬ' },
+  'menu.creditsAbout':      { en: 'CREDITS / ABOUT',         ru: 'АВТОРЫ / О ПРОЕКТЕ' },
+  'menu.selectMode':        { en: 'SELECT CAMPAIGN TYPE',    ru: 'ВЫБЕРИТЕ ТИП КАМПАНИИ' },
+  'menu.gameMode':          { en: 'GAME MODE',               ru: 'РЕЖИМ ИГРЫ' },
+  'menu.cancel':            { en: 'CANCEL',                  ru: 'ОТМЕНА' },
+
+  // ── NUKE MODAL ─────────────────────────────────────────────────────────────
+  'nuke.oneUse':            { en: 'One use per turn',        ru: 'Один пуск за ход' },
+  'nuke.abort':             { en: 'ABORT',                   ru: 'ОТМЕНА' },
+
+  // ── SELECTION CARD ─────────────────────────────────────────────────────────
+  'card.close':             { en: 'CLOSE',                   ru: 'ЗАКРЫТЬ' },
+
+  // ── SPY OPS ────────────────────────────────────────────────────────────────
+  'spy.title':              { en: '🕵 SPY OPS',              ru: '🕵 РАЗВЕДКА' },
+  'spy.reveal':             { en: '👁 REVEAL REGION',        ru: '👁 РАЗВЕДАТЬ РЕГИОН' },
+  'spy.sabotage':           { en: '💣 SABOTAGE INDUSTRY',    ru: '💣 ДИВЕРСИЯ НА ЗАВОДАХ' },
+  'spy.assassinate':        { en: '🗡 ASSASSINATE LEADER (2 charges)', ru: '🗡 ЛИКВИДИРОВАТЬ ЛИДЕРА (2 заряда)' },
+  'spy.close':              { en: 'CLOSE',                   ru: 'ЗАКРЫТЬ' },
+  'spy.noCharges':          { en: 'No charges remaining',    ru: 'Нет зарядов' },
+
+  // ── WEATHER ────────────────────────────────────────────────────────────────
+  'weather.clear':          { en: 'CLEAR',     ru: 'ЯСНО' },
+  'weather.rain':           { en: 'RAIN',      ru: 'ДОЖДЬ' },
+  'weather.storm':          { en: 'STORM',     ru: 'ШТОРМ' },
+  'weather.snow':           { en: 'BLIZZARD',  ru: 'ПУРГА' },
+  'weather.heatwave':       { en: 'HEAT',      ru: 'ЖАРА' },
+  'weather.fog':            { en: 'FOG',       ru: 'ТУМАН' },
+
+  // ── GAME LOG MESSAGES ──────────────────────────────────────────────────────
+  'log.campaignStart':      { en: 'Campaign started as {faction} — {mode} mode', ru: 'Кампания начата за {faction} — режим {mode}' },
+  'log.attackSuccess2':     { en: 'SUCCESS: Operation in {region}',  ru: 'УСПЕХ: Операция в {region}' },
+  'log.attackFailure2':     { en: 'FAILURE: Operation in {region}',  ru: 'ПРОВАЛ: Операция в {region}' },
+  'log.navalRequired':      { en: 'ERROR: Naval units require a coastal region.', ru: 'ОШИБКА: Морские единицы требуют прибрежного региона.' },
+  'log.production2':        { en: 'PRODUCTION: {unit} deployed in {region}', ru: 'ПРОИЗВОДСТВО: {unit} развёрнут в {region}' },
+  'log.insufficientInd':    { en: 'ERROR: Insufficient Industry in {region}', ru: 'ОШИБКА: Недостаточно промышленности в {region}' },
+  'log.insufficientRes':    { en: 'ERROR: Insufficient Funds or Supplies', ru: 'ОШИБКА: Недостаточно средств или снабжения' },
+  'log.nuclearNoWarheads':  { en: 'NUCLEAR: No warheads in stockpile.', ru: 'ЯДЕРНОЕ: Нет боеголовок на складе.' },
+  'log.nuclearAlreadyUsed': { en: 'NUCLEAR: Launch protocol already executed this turn.', ru: 'ЯДЕРНОЕ: Протокол пуска уже выполнен в этом ходу.' },
+  'log.nuclearOwnTerritory':{ en: 'NUCLEAR: Cannot target own territory.', ru: 'ЯДЕРНОЕ: Нельзя атаковать свою территорию.' },
+  'log.nuclearNeutral':     { en: 'NUCLEAR: Cannot strike neutral regions.', ru: 'ЯДЕРНОЕ: Нельзя атаковать нейтральные регионы.' },
+  'log.nuclearStrike':      { en: '☢ NUCLEAR STRIKE: {region} obliterated.', ru: '☢ ЯДЕРНЫЙ УДАР: {region} уничтожен.' },
+  'log.strategicLoss':      { en: 'STRATEGIC LOSS: {region} captured by {faction}', ru: 'СТРАТЕГИЧЕСКИЕ ПОТЕРИ: {region} захвачен {faction}' },
+  'log.deadHand':           { en: '☠ DEAD HAND: Automated retaliation — ☢ {region} obliterated!', ru: '☠ МЁРТВАЯ РУКА: Автоматический ответный удар — ☢ {region} уничтожен!' },
+  'log.spyNoCharges':       { en: 'SPY: No operative charges remaining.', ru: 'РАЗВЕДКА: Нет зарядов агентов.' },
+  'log.spyReveal':          { en: '🕵 SPY REVEAL: {region} and surroundings exposed.', ru: '🕵 РАЗВЕДКА: {region} и окрестности раскрыты.' },
+  'log.spySabotage':        { en: '💣 SABOTAGE: Infrastructure destroyed in {region}.', ru: '💣 ДИВЕРСИЯ: Инфраструктура уничтожена в {region}.' },
+  'log.spyAssassinate':     { en: '🗡 ASSASSINATION: High-value target eliminated in {faction}.', ru: '🗡 ЛИКВИДАЦИЯ: Важная цель устранена в {faction}.' },
+  'log.researchComplete':   { en: 'RESEARCH COMPLETE: {name}', ru: 'ИССЛЕДОВАНИЕ ЗАВЕРШЕНО: {name}' },
+  'log.researchActive':     { en: 'RESEARCH: {name} already active.', ru: 'ИССЛЕДОВАНИЕ: {name} уже активно.' },
+  'log.researchNoPoints':   { en: 'RESEARCH: Insufficient tech points (need {n}).', ru: 'ИССЛЕДОВАНИЕ: Недостаточно очков (нужно {n}).' },
+  'log.researchRequires':   { en: 'RESEARCH: Requires {name} first.', ru: 'ИССЛЕДОВАНИЕ: Сначала требуется {name}.' },
+  'log.researchBlocked':    { en: 'RESEARCH: Blocked by mutual exclusion.', ru: 'ИССЛЕДОВАНИЕ: Заблокировано взаимным исключением.' },
+
+  // ── CAMPAIGN MODE ──────────────────────────────────────────────────────────
+  'campaign.title':         { en: 'CAMPAIGN',                ru: 'КАМПАНИЯ' },
+  'campaign.missions':      { en: 'MISSIONS',                ru: 'МИССИИ' },
+  'campaign.objective':     { en: 'OBJECTIVE',               ru: 'ЦЕЛЬ' },
+  'campaign.complete':      { en: 'COMPLETE',                ru: 'ВЫПОЛНЕНО' },
+  'campaign.failed':        { en: 'FAILED',                  ru: 'ПРОВАЛЕНО' },
+  'campaign.active':        { en: 'ACTIVE',                  ru: 'АКТИВНО' },
+  'campaign.reward':        { en: 'REWARD',                  ru: 'НАГРАДА' },
+  'campaign.progress':      { en: 'Progress:',               ru: 'Прогресс:' },
+
+
+  // ── FACTION DESCRIPTIONS (from mapData FD) ────────────────────────────────
+  'faction.nato.name':    { en: 'NATO Alliance',              ru: 'Альянс НАТО' },
+  'faction.nato.desc':    { en: 'Technological superiority & economic dominance.', ru: 'Технологическое превосходство и экономическое господство.' },
+  'faction.east.name':    { en: 'Eastern Alliance',           ru: 'Восточный Альянс' },
+  'faction.east.desc':    { en: 'Vast Eurasian territory & nuclear arsenal.',      ru: 'Огромная евразийская территория и ядерный арсенал.' },
+  'faction.china.name':   { en: 'Pacific Pact',               ru: 'Тихоокеанский Пакт' },
+  'faction.china.desc':   { en: "World's largest army & Pacific dominance.",      ru: 'Крупнейшая армия мира и господство в Тихом океане.' },
+  'faction.command':      { en: 'COMMAND',                    ru: 'КОМАНДОВАНИЕ' },
+
+  // ── GAME MODES (full labels + descriptions) ────────────────────────────────
+  'mode.campaign.label':  { en: 'CAMPAIGN',   ru: 'КАМПАНИЯ' },
+  'mode.campaign.sub':    { en: 'Standard WW3 scenario. Control 60% to win.', ru: 'Стандартный сценарий ВМВ. Контроль 60% для победы.' },
+  'mode.blitz.label':     { en: 'BLITZ',      ru: 'БЛИЦКРИГ' },
+  'mode.blitz.sub':       { en: 'Fast pace. 40% control wins. AI is very aggressive.', ru: 'Быстрый темп. 40% контроль — победа. ИИ очень агрессивен.' },
+  'mode.survival.label':  { en: 'SURVIVAL',   ru: 'ВЫЖИВАНИЕ' },
+  'mode.survival.sub':    { en: 'Start with 1 region. Two AI factions already at war.', ru: 'Начало с 1 региона. Два ИИ уже в состоянии войны.' },
+
+  // ── STATS ──────────────────────────────────────────────────────────────────
+  'stat.atk':             { en: 'ATK',        ru: 'АТК' },
+  'stat.def':             { en: 'DEF',        ru: 'ЗАЩ' },
+  'stat.nukes':           { en: 'NUKES',      ru: 'ЯДЕРКИ' },
+
+  // ── BOTTOM NAV ─────────────────────────────────────────────────────────────
+  'nav.missions':         { en: 'MISSIONS',   ru: 'МИССИИ' },
+
+  // ── INTRO SCREEN ───────────────────────────────────────────────────────────
+  'intro.title':          { en: 'WORLD WAR III',   ru: 'ТРЕТЬЯ МИРОВАЯ ВОЙНА' },
+  'intro.subtitle':       { en: 'HOW WE GOT HERE', ru: 'КАК МЫ СЮДА ПРИШЛИ' },
+  'intro.burnLine':       { en: 'THE WORLD BURNS', ru: 'МИР ГОРИТ' },
+  'intro.enter':          { en: 'ENTER COMMAND CENTER', ru: 'ВОЙТИ В ЦЕНТР УПРАВЛЕНИЯ' },
+
+
+  // ── IN-GAME MAP SCREEN HUD ─────────────────────────────────────────────────
+  'hud.tp':               { en: 'TP',         ru: 'НО' },
+  'hud.regionIntel':      { en: 'REGION INTEL', ru: 'РАЗВЕДДАННЫЕ' },
+  'hud.eco':              { en: 'ECO',        ru: 'ЭКО' },
+  'hud.ind':              { en: 'IND',        ru: 'ПРМ' },
+  'hud.stb':              { en: 'STB',        ru: 'СТБ' },
+  'hud.ready':            { en: 'READY',      ru: 'ГОТОВ' },
+  'hud.locked':           { en: 'LOCKED',     ru: 'ЗАПЕРТ' },
+
+  // ── BOTTOM NAV TABS ────────────────────────────────────────────────────────
+  'nav.map':              { en: 'MAP',        ru: 'КАРТА' },
+  'nav.deploy':           { en: 'DEPLOY',     ru: 'РАЗВЁРН' },
+  'nav.research':         { en: 'RESEARCH',   ru: 'НАУКА' },
+  'nav.alliance':         { en: 'ALLIANCE',   ru: 'АЛЬЯНС' },
+  'nav.endTurn':          { en: 'END TURN',   ru: 'КОНЕЦ ХОДА' },
+
+  // ── UNIT LABELS ────────────────────────────────────────────────────────────
+  'unit.infantry':        { en: '⚔ INF',     ru: '⚔ ПЕХ' },
+  'unit.armor':           { en: '🛡 ARM',     ru: '🛡 БРН' },
+  'unit.air':             { en: '✈ AIR',      ru: '✈ АВИ' },
+  'unit.destroyer':       { en: '⚓ DST',     ru: '⚓ ЭСМ' },
+  'unit.submarine':       { en: '🌊 SUB',     ru: '🌊 ПЛД' },
+  'unit.carrier':         { en: '🚢 CVN',     ru: '🚢 АВН' },
+
+  // ── SPECIAL ACTIONS ────────────────────────────────────────────────────────
+  'action.nuke':          { en: 'NUKE',       ru: 'ЯДЕРНЫЙ' },
+  'action.orbital':       { en: 'ORBITAL',    ru: 'ОРБИТ.' },
+  'action.blackout':      { en: 'BLACKOUT',   ru: 'ЗАТМЕНИЕ' },
+  'action.attack':        { en: 'ATTACK',     ru: 'АТАКА' },
+
+  // ── GAME OVER TITLES ───────────────────────────────────────────────────────
+  'gameover.title.military':  { en: 'MILITARY DEFEAT',   ru: 'ВОЕННОЕ ПОРАЖЕНИЕ' },
+  'gameover.title.collapse':  { en: 'STATE COLLAPSE',    ru: 'КОЛЛАПС ГОСУДАРСТВА' },
+  'gameover.title.nuclear':   { en: 'NUCLEAR ANNIHILATION', ru: 'ЯДЕРНОЕ УНИЧТОЖЕНИЕ' },
+  'gameover.title.victory':   { en: 'TOTAL VICTORY',     ru: 'ПОЛНАЯ ПОБЕДА' },
+  'gameover.default':         { en: 'GAME OVER',         ru: 'ИГРА ОКОНЧЕНА' },
+
   'gameover.mainMenu':    { en: 'MAIN MENU',                ru: 'ГЛАВНОЕ МЕНЮ' },
   'gameover.newCampaign': { en: 'NEW CAMPAIGN',             ru: 'НОВАЯ КАМПАНИЯ' },
 
