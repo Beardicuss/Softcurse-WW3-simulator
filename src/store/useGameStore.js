@@ -156,9 +156,9 @@ const useGameStore = create((set, get) => ({
             from,
             to,
             FD[from.faction].atk,
-            FD[to.faction].def,
-            from.stability,
-            to.stability
+            FD[to.faction]?.def ?? 0.85,
+            from.stability ?? 100,
+            to.stability ?? 100
         );
 
         const newRegions = { ...state.regions };
@@ -263,6 +263,7 @@ const useGameStore = create((set, get) => ({
     },
 
     endTurn: () => {
+        try {
         const state = get();
         const newRegions = { ...state.regions };
         const newFactions = { ...state.factions };
@@ -352,15 +353,22 @@ const useGameStore = create((set, get) => ({
         aiFactions.forEach(aiKey => {
             const moves = runAI(aiKey, newRegions, state.playerFaction);
             moves.forEach(m => {
+                // Always read fresh — a prior move may have changed these regions
                 const from = newRegions[m.from];
                 const to = newRegions[m.to];
+                if (!from || !to) return; // region was already taken this turn
+                if (from.faction !== aiKey) return; // lost the region before this move
+
+                const toFaction = to.faction || 'NEUTRAL';
+                const defStat = FD[toFaction]?.def ?? 0.85;
+
                 const { win, aDamage, dDamage } = doCombat(
                     from,
                     to,
                     FD[aiKey].atk,
-                    FD[to.faction].def,
-                    from.stability,
-                    to.stability
+                    defStat,
+                    from.stability ?? 100,
+                    to.stability ?? 100
                 );
 
                 if (win) {
@@ -413,24 +421,25 @@ const useGameStore = create((set, get) => ({
                 isGameOver: true,
                 gameLog: ['CRITICAL FAILURE: Command Authority lost.', ...state.gameLog].slice(0, 10)
             });
-            // Wipe save on death (?) - optional, let's just let them reload for now.
             get().saveGame();
         } else {
             set({
                 regions: newRegions,
                 factions: newFactions,
-                gameLog: [`Turn ${state.turn} completed.`, ...state.gameLog].slice(0, 10),
+                gameLog: [`Turn ${state.turn} completed.`, ...newLog].slice(0, 10),
                 selectedRegionId: null,
                 turn: state.turn + 1,
                 date: newDate.getTime(),
             });
-
-            // Auto-save every turn
             get().saveGame();
+        }
+        } catch (e) {
+            console.error('endTurn crashed:', e);
+            set({ gameLog: [`ERROR: Turn processing failed — ${e.message}`, ...get().gameLog].slice(0, 10) });
         }
     },
 
-    // New actions for saving/loading
+    // ── Persistence ──────────────────────────────────────────────────────────
     saveGame: async () => {
         const state = get();
         const stateToSave = {
@@ -440,15 +449,12 @@ const useGameStore = create((set, get) => ({
             turn: state.turn,
             date: state.date,
             gameLog: state.gameLog,
-            // Do NOT save selectedRegionId, isGameOver, hasSave, settings
-            // Do NOT save actions themselves
         };
         try {
             await AsyncStorage.setItem('game_save', JSON.stringify(stateToSave));
-            set({ hasSave: true, gameLog: ['Game saved successfully!', ...state.gameLog].slice(0, 10) });
+            set({ hasSave: true });
         } catch (e) {
             console.error("Failed to save game:", e);
-            set({ gameLog: ['ERROR: Failed to save game.', ...state.gameLog].slice(0, 10) });
         }
     },
 
@@ -459,20 +465,20 @@ const useGameStore = create((set, get) => ({
                 const parsedState = JSON.parse(savedState);
                 set({
                     ...parsedState,
-                    isGameOver: false, // Ensure game is not over on load
-                    selectedRegionId: null, // Clear selected region
+                    isGameOver: false,
+                    selectedRegionId: null,
                     hasSave: true,
-                    uiMode: 'GAME', // Required to switch out of the Main Menu
-                    gameLog: ['Game loaded successfully!', ...parsedState.gameLog].slice(0, 10)
+                    uiMode: 'GAME',
+                    gameLog: ['Game loaded successfully!', ...(parsedState.gameLog || [])].slice(0, 10)
                 });
                 return true;
             } else {
-                set({ hasSave: false, gameLog: ['No saved game found.', ...get().gameLog].slice(0, 10) });
+                set({ hasSave: false });
                 return false;
             }
         } catch (e) {
             console.error("Failed to load game:", e);
-            set({ hasSave: false, gameLog: ['ERROR: Failed to load game.', ...get().gameLog].slice(0, 10) });
+            set({ hasSave: false });
             return false;
         }
     },
@@ -480,16 +486,18 @@ const useGameStore = create((set, get) => ({
     checkHasSave: async () => {
         try {
             const savedState = await AsyncStorage.getItem('game_save');
-            set({ hasSave: !!savedState });
+            const settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
+            const updates = { hasSave: !!savedState };
+            if (settingsData) updates.settings = JSON.parse(settingsData);
+            set(updates);
         } catch (e) {
-            console.error("Failed to check for save game:", e);
             set({ hasSave: false });
         }
     },
 
-    // Settings actions (example)
     setMusicVolume: (volume) => set(state => ({ settings: { ...state.settings, musicVolume: volume } })),
     setSfxVolume: (volume) => set(state => ({ settings: { ...state.settings, sfxVolume: volume } })),
 }));
 
 export default useGameStore;
+

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
@@ -105,14 +105,20 @@ const GameMap = () => {
         });
     }, []);
 
-    const createCurvedPath = (x1, y1, x2, y2) => {
-        const p = Skia.Path.Make();
-        p.moveTo(x1, y1);
-        p.quadTo((x1 + x2) / 2, (y1 + y2) / 2 - 12, x2, y2);
-        return p;
-    };
+    // ── All Skia paths are memoised so they are built ONCE, not every render ──
 
-    const createHexPath = (cx, cy, radius) => {
+    // Adjacency curved paths — built once alongside connections
+    const connectionPaths = useMemo(() => {
+        return connections.map(line => {
+            const p = Skia.Path.Make();
+            p.moveTo(line.x1, line.y1);
+            p.quadTo((line.x1 + line.x2) / 2, (line.y1 + line.y2) / 2 - 12, line.x2, line.y2);
+            return { ...line, skiPath: p };
+        });
+    }, [connections]);
+
+    // Helper — not called during render, only inside other useMemos
+    const _makeHex = (cx, cy, radius) => {
         const p = Skia.Path.Make();
         for (let i = 0; i < 6; i++) {
             const a = (Math.PI / 3) * i - Math.PI / 6;
@@ -124,66 +130,90 @@ const GameMap = () => {
         return p;
     };
 
-    const createTankPath = (cx, cy, scale = 1) => {
-        const path = Skia.Path.Make();
-        const s = scale * 1.5;
-        path.moveTo(cx - 3 * s, cy + 1 * s);
-        path.lineTo(cx + 3 * s, cy + 1 * s);
-        path.lineTo(cx + 2 * s, cy - 1 * s);
-        path.lineTo(cx - 2 * s, cy - 1 * s);
-        path.close();
-        path.moveTo(cx - 1 * s, cy - 1 * s);
-        path.lineTo(cx + 1 * s, cy - 1 * s);
-        path.lineTo(cx + 1 * s, cy - 2 * s);
-        path.lineTo(cx - 1 * s, cy - 2 * s);
-        path.close();
-        path.moveTo(cx + 1 * s, cy - 1.5 * s);
-        path.lineTo(cx + 4 * s, cy - 1.5 * s);
-        return path;
-    };
+    // Static hex geometry for every region — built once
+    const regionGeometry = useMemo(() => {
+        return REGIONS.reduce((acc, r) => {
+            const cx = projectX(r.x);
+            const cy = projectY(r.y);
+            acc[r.id] = {
+                cx, cy,
+                hexOut: _makeHex(cx, cy, r.r * 2.6),
+                hexIn:  _makeHex(cx, cy, r.r * 1.8),
+                hexOutSel:    _makeHex(cx, cy, r.r * 2.6), // same path, reused
+                hexOutTarget: _makeHex(cx, cy, r.r * 2.6),
+                rDot: r.r * 0.55,
+                rPulse: r.r * 4.2,
+                rTarget: r.r * 4.5,
+                rStrategic: r.r * 4.8,
+                strategic: r.strategic,
+                // Unit icon offsets
+                tankOffset:  { x: cx - r.r * 3.5, y: cy + r.r * 1.5, s: r.r * 0.25 },
+                jetOffset:   { x: cx,              y: cy - r.r * 3.8, s: r.r * 0.25 },
+                shipOffset:  { x: cx + r.r * 3.5,  y: cy + r.r * 1.0, s: r.r * 0.25 },
+            };
+            return acc;
+        }, {});
+    }, []);
 
-    const createJetPath = (cx, cy, scale = 1) => {
-        const path = Skia.Path.Make();
-        const s = scale * 1.5;
-        path.moveTo(cx, cy - 3 * s); // Nose
-        path.lineTo(cx + 1 * s, cy - 1 * s);
-        path.lineTo(cx + 3 * s, cy + 1 * s); // Right wing
-        path.lineTo(cx + 1 * s, cy + 1 * s);
-        path.lineTo(cx + 1 * s, cy + 3 * s); // Tail
-        path.lineTo(cx, cy + 2 * s);
-        path.lineTo(cx - 1 * s, cy + 3 * s); // Tail
-        path.lineTo(cx - 1 * s, cy + 1 * s);
-        path.lineTo(cx - 3 * s, cy + 1 * s); // Left wing
-        path.lineTo(cx - 1 * s, cy - 1 * s);
-        path.close();
-        return path;
-    };
+    // Unit icon paths — built once per region using fixed offsets
+    const unitPaths = useMemo(() => {
+        const out = {};
+        REGIONS.forEach(r => {
+            const g = regionGeometry[r.id];
 
-    const createShipPath = (cx, cy, scale = 1) => {
-        const path = Skia.Path.Make();
-        const s = scale * 1.5;
-        path.moveTo(cx - 4 * s, cy - 1 * s);
-        path.lineTo(cx + 3 * s, cy - 1 * s);
-        path.lineTo(cx + 4 * s, cy + 1 * s);
-        path.lineTo(cx - 3 * s, cy + 1 * s);
-        path.close();
-        path.moveTo(cx - 1 * s, cy - 1 * s);
-        path.lineTo(cx + 1 * s, cy - 1 * s);
-        path.lineTo(cx + 1 * s, cy - 3 * s);
-        path.lineTo(cx - 1 * s, cy - 3 * s);
-        path.close();
-        return path;
-    };
+            const makeTank = (cx, cy, sc) => {
+                const path = Skia.Path.Make();
+                const s = sc * 1.5;
+                path.moveTo(cx - 3*s, cy + s);   path.lineTo(cx + 3*s, cy + s);
+                path.lineTo(cx + 2*s, cy - s);   path.lineTo(cx - 2*s, cy - s);
+                path.close();
+                path.moveTo(cx - s, cy - s);      path.lineTo(cx + s, cy - s);
+                path.lineTo(cx + s, cy - 2*s);   path.lineTo(cx - s, cy - 2*s);
+                path.close();
+                path.moveTo(cx + s, cy - 1.5*s); path.lineTo(cx + 4*s, cy - 1.5*s);
+                return path;
+            };
+            const makeJet = (cx, cy, sc) => {
+                const path = Skia.Path.Make();
+                const s = sc * 1.5;
+                path.moveTo(cx, cy - 3*s);
+                path.lineTo(cx + s, cy - s);     path.lineTo(cx + 3*s, cy + s);
+                path.lineTo(cx + s, cy + s);     path.lineTo(cx + s, cy + 3*s);
+                path.lineTo(cx, cy + 2*s);       path.lineTo(cx - s, cy + 3*s);
+                path.lineTo(cx - s, cy + s);     path.lineTo(cx - 3*s, cy + s);
+                path.lineTo(cx - s, cy - s);     path.close();
+                return path;
+            };
+            const makeShip = (cx, cy, sc) => {
+                const path = Skia.Path.Make();
+                const s = sc * 1.5;
+                path.moveTo(cx - 4*s, cy - s);  path.lineTo(cx + 3*s, cy - s);
+                path.lineTo(cx + 4*s, cy + s);  path.lineTo(cx - 3*s, cy + s);
+                path.close();
+                path.moveTo(cx - s, cy - s);    path.lineTo(cx + s, cy - s);
+                path.lineTo(cx + s, cy - 3*s); path.lineTo(cx - s, cy - 3*s);
+                path.close();
+                return path;
+            };
+
+            out[r.id] = {
+                tank: makeTank(g.tankOffset.x, g.tankOffset.y, g.tankOffset.s),
+                jet:  makeJet(g.jetOffset.x,  g.jetOffset.y,  g.jetOffset.s),
+                ship: makeShip(g.shipOffset.x, g.shipOffset.y, g.shipOffset.s),
+            };
+        });
+        return out;
+    }, []);
 
     return (
         <GestureDetector gesture={composed}>
             <Canvas style={styles.canvas}>
 
                 {/* Ocean background */}
-                <Rect x={0} y={0} width={3000} height={3000}>
+                <Rect x={0} y={0} width={SCREEN_WIDTH * 3} height={SCREEN_HEIGHT * 3}>
                     <LinearGradient
                         start={vec(0, 0)}
-                        end={vec(3000, 3000)}
+                        end={vec(SCREEN_WIDTH * 3, SCREEN_HEIGHT * 3)}
                         colors={['#0d1f35', '#071220', '#0f1a2e']}
                     />
                 </Rect>
@@ -213,25 +243,22 @@ const GameMap = () => {
                     </Group>
 
                     {/* ── Adjacency lines ──────────────────────────────────── */}
-                    {connections.map(line => {
-                        const p = createCurvedPath(line.x1, line.y1, line.x2, line.y2);
-                        return (
-                            <Path
-                                key={line.id}
-                                path={p}
-                                color="#e74c3c"
-                                style="stroke"
-                                strokeWidth={1.5}
-                            >
-                                <DashPathEffect intervals={[4, 4]} />
-                                <LinearGradient
-                                    start={vec(line.x1, line.y1)}
-                                    end={vec(line.x2, line.y2)}
-                                    colors={["rgba(255, 100, 100, 0.2)", "rgba(255, 150, 150, 0.8)", "rgba(255, 100, 100, 0.2)"]}
-                                />
-                            </Path>
-                        );
-                    })}
+                    {connectionPaths.map(line => (
+                        <Path
+                            key={line.id}
+                            path={line.skiPath}
+                            color="#e74c3c"
+                            style="stroke"
+                            strokeWidth={1.5}
+                        >
+                            <DashPathEffect intervals={[4, 4]} />
+                            <LinearGradient
+                                start={vec(line.x1, line.y1)}
+                                end={vec(line.x2, line.y2)}
+                                colors={["rgba(255, 100, 100, 0.2)", "rgba(255, 150, 150, 0.8)", "rgba(255, 100, 100, 0.2)"]}
+                            />
+                        </Path>
+                    ))}
 
                     {/* ── Region hex nodes ─────────────────────────────────── */}
                     {REGIONS.map(r => {
@@ -239,6 +266,8 @@ const GameMap = () => {
                         const faction = rs?.faction || 'NEUTRAL';
                         const color = FD[faction]?.color || '#2a3d50';
                         const isSel = selectedRegionId === r.id;
+                        const g = regionGeometry[r.id];
+                        const up = unitPaths[r.id];
 
                         let isTarget = false;
                         if (selectedRegionId && selectedRegionId !== r.id) {
@@ -248,46 +277,33 @@ const GameMap = () => {
                             }
                         }
 
-                        const cx = projectX(r.x);
-                        const cy = projectY(r.y);
-                        const hexOut = createHexPath(cx, cy, r.r * 2.6);
-                        const hexIn = createHexPath(cx, cy, r.r * 1.8);
-
                         return (
                             <Group key={r.id}>
                                 {isSel && (
                                     <>
-                                        <Circle cx={cx} cy={cy} r={r.r * 4.2} color="rgba(255,255,255,0.1)" />
-                                        <Path path={hexOut} color="rgba(80,200,255,0.9)" style="stroke" strokeWidth={2} />
+                                        <Circle cx={g.cx} cy={g.cy} r={g.rPulse} color="rgba(255,255,255,0.1)" />
+                                        <Path path={g.hexOut} color="rgba(80,200,255,0.9)" style="stroke" strokeWidth={2} />
                                     </>
                                 )}
                                 {isTarget && (
                                     <>
-                                        <Circle cx={cx} cy={cy} r={r.r * 4.5} color="rgba(255,40,40,0.1)" />
-                                        <Path path={hexOut} color="rgba(255,60,60,0.95)" style="stroke" strokeWidth={2} />
+                                        <Circle cx={g.cx} cy={g.cy} r={g.rTarget} color="rgba(255,40,40,0.1)" />
+                                        <Path path={g.hexOut} color="rgba(255,60,60,0.95)" style="stroke" strokeWidth={2} />
                                     </>
                                 )}
-                                <Path path={hexOut} color="rgba(5,12,22,0.65)" />
-                                <Path path={hexOut} color={`${color}88`} style="stroke" strokeWidth={0.8} />
-                                <Path path={hexIn} color={getFactionFill(faction)} />
-                                <Path path={hexIn} color={color} style="stroke" strokeWidth={1.2} />
-                                <Circle cx={cx} cy={cy} r={r.r * 0.55} color={isSel ? '#ffffff' : `${color}cc`} />
+                                <Path path={g.hexOut} color="rgba(5,12,22,0.65)" />
+                                <Path path={g.hexOut} color={`${color}88`} style="stroke" strokeWidth={0.8} />
+                                <Path path={g.hexIn} color={getFactionFill(faction)} />
+                                <Path path={g.hexIn} color={color} style="stroke" strokeWidth={1.2} />
+                                <Circle cx={g.cx} cy={g.cy} r={g.rDot} color={isSel ? '#ffffff' : `${color}cc`} />
                                 {r.strategic && (
-                                    <Circle cx={cx} cy={cy} r={r.r * 4.8} color="rgba(255,215,0,0.35)" style="stroke" strokeWidth={0.8} />
+                                    <Circle cx={g.cx} cy={g.cy} r={g.rStrategic} color="rgba(255,215,0,0.35)" style="stroke" strokeWidth={0.8} />
                                 )}
-
-                                {/* Unit Icons rendering */}
                                 {rs && (
                                     <Group>
-                                        {(rs.armor > 0) && (
-                                            <Path path={createTankPath(cx - r.r * 3.5, cy + r.r * 1.5, r.r * 0.25)} color="#bdc3c7" style="fill" />
-                                        )}
-                                        {(rs.air > 0) && (
-                                            <Path path={createJetPath(cx, cy - r.r * 3.8, r.r * 0.25)} color="#3498db" style="fill" />
-                                        )}
-                                        {(rs.infantry > 0) && (
-                                            <Path path={createShipPath(cx + r.r * 3.5, cy + r.r * 1, r.r * 0.25)} color="#7f8c8d" style="fill" />
-                                        )}
+                                        {rs.armor > 0 && <Path path={up.tank} color="#bdc3c7" style="fill" />}
+                                        {rs.air   > 0 && <Path path={up.jet}  color="#3498db" style="fill" />}
+                                        {rs.infantry > 0 && <Path path={up.ship} color="#7f8c8d" style="fill" />}
                                     </Group>
                                 )}
                             </Group>
@@ -316,4 +332,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default GameMap;
+export default memo(GameMap);

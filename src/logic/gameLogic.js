@@ -211,6 +211,49 @@ export function runAI(aiKey, state, pf) {
     return out;
 }
 
+// processStability — runs faction-level crisis checks each turn.
+// Returns { updatedFactions, updatedRegions } with any applied changes.
+export function processStability(factions, regions, turn, log) {
+    const updatedFactions = { ...factions };
+    const updatedRegions = { ...regions };
+
+    Object.keys(updatedFactions).forEach(fk => {
+        const fac = { ...updatedFactions[fk] };
+        const ownedIds = Object.keys(updatedRegions).filter(rid => updatedRegions[rid].faction === fk);
+
+        // Natural stability recovery
+        fac.stability = Math.min(100, fac.stability + 1);
+
+        // High threat = stability bleed
+        const threat = getThreatLevel(fk, updatedRegions);
+        if (threat > 200) fac.stability = Math.max(0, fac.stability - 3);
+        else if (threat > 100) fac.stability = Math.max(0, fac.stability - 1);
+
+        // Rebellion: very low stability causes a random owned region to flip to NEUTRAL
+        if (fac.stability < 25 && ownedIds.length > 1) {
+            const weakest = ownedIds
+                .filter(rid => updatedRegions[rid].stability < 40)
+                .sort((a, b) => updatedRegions[a].stability - updatedRegions[b].stability)[0];
+            if (weakest) {
+                updatedRegions[weakest] = { ...updatedRegions[weakest], faction: 'NEUTRAL' };
+                if (log) log.unshift(`CRISIS: Rebellion — ${weakest.toUpperCase()} has broken away from ${fk}!`);
+            }
+        }
+
+        // Region stability slowly recovers each turn
+        ownedIds.forEach(rid => {
+            const r = updatedRegions[rid];
+            if (r.stability < 100) {
+                updatedRegions[rid] = { ...r, stability: Math.min(100, r.stability + 2) };
+            }
+        });
+
+        updatedFactions[fk] = fac;
+    });
+
+    return { updatedFactions, updatedRegions };
+}
+
 export function getThreatLevel(fid, rs) {
     let out = 0;
     for (const rid of Object.keys(rs)) {
