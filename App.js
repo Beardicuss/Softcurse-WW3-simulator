@@ -29,10 +29,8 @@ import DiplomacyPanel from './src/components/DiplomacyPanel';
 import ResearchPanel from './src/components/ResearchPanel';
 import SettingsView from './src/components/SettingsView';
 import GameFrame from './src/components/GameFrame';
-import { useTranslation } from './src/i18n/i18n';
-import { useAudio } from './src/audio/audioSystem';
-import CombatEffects from './src/components/CombatEffects';
-import CampaignPanel from './src/components/CampaignPanel';
+import GameOverScreen from './src/components/GameOverScreen';
+import ActBanner from './src/components/ActBanner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,39 +39,13 @@ const App = () => {
     uiMode, playerFaction, factions, regions,
     turn, date, gameLog, selectedRegionId, startGame, checkHasSave,
     nukeUsedThisTurn, launchNuke, orbitalStrike, blackoutRegion, aiMemory,
-    isGameOver, gameOverReason, actPhase, actEvents, activeEventLog,
-    weather, spyReveal, spySabotage, spyAssassinate,
-    missionProgress, newlyCompletedMissions,
+    isGameOver, act, actJustChanged,
   } = useGameStore();
 
-  const t = useTranslation();
-  const audio = useAudio();
   const [showEconomy, setShowEconomy] = React.useState(false);
-  const [combatEffects, setCombatEffects] = React.useState([]);
-
-  // Fire a combat visual effect
-  // Mission completion toast
-  React.useEffect(() => {
-    if (newlyCompletedMissions?.length > 0) {
-      const lang = useGameStore.getState().settings?.language || 'en';
-      const m = newlyCompletedMissions[0];
-      setMissionToast(lang === 'ru' ? m.titleRu : m.title);
-      const timer = setTimeout(() => setMissionToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [newlyCompletedMissions]);
-
-  const fireEffect = React.useCallback((type, regionId) => {
-    const id = Date.now() + Math.random();
-    setCombatEffects(prev => [...prev.slice(-7), { type, regionId, id }]);
-    setTimeout(() => setCombatEffects(prev => prev.filter(e => e.id !== id)), 900);
-  }, []);
   const [showDiplomacy, setShowDiplomacy] = React.useState(false);
   const [showResearch, setShowResearch] = React.useState(false);
   const [showNukeModal, setShowNukeModal] = React.useState(false);
-  const [showSpyMenu, setShowSpyMenu] = React.useState(false);
-  const [showCampaign, setShowCampaign] = React.useState(false);
-  const [missionToast, setMissionToast] = React.useState(null);
 
   React.useEffect(() => { checkHasSave(); }, [checkHasSave]);
 
@@ -82,60 +54,6 @@ const App = () => {
   if (uiMode === 'MENU') return <MainMenuView />;
   if (uiMode === 'FACTION') return <FactionSelectView onStart={startGame} />;
   if (uiMode === 'SETTINGS') return <SettingsView />;
-
-  // ── GAME OVER SCREEN ─────────────────────────────────────────────────────────
-  if (isGameOver) {
-    const isVictory = gameOverReason === 'victory';
-    const titles = { // translated below
-      victory:  '🏆 WORLD DOMINATION',
-      military: '💀 MILITARY DEFEAT',
-      collapse: '🔥 SYSTEMATIC COLLAPSE',
-      nuclear:  '☢ NUCLEAR ANNIHILATION',
-    };
-    const subtitles = {
-      victory:  `${FD[playerFaction]?.name || playerFaction} conquers the globe in ${turn} turns.`,
-      military: 'All territory has been lost. The command structure has dissolved.',
-      collapse: 'Internal stability reached zero. The government fell from within.',
-      nuclear:  'The warheads fell. There is nothing left to command.',
-    };
-    const colors = { victory: '#c8a35c', military: '#e74c3c', collapse: '#e67e22', nuclear: '#9b59b6' };
-    const accentColor = colors[gameOverReason] || '#e74c3c';
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: '#05080a', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ color: accentColor, fontSize: 28, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginBottom: 12 }}>
-            {titles[gameOverReason] || t('gameover.default')}
-          </Text>
-          <Text style={{ color: '#a0b8c8', fontSize: 13, textAlign: 'center', letterSpacing: 1, marginBottom: 32, lineHeight: 20 }}>
-            {subtitles[gameOverReason]}
-          </Text>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: '#2c3a44', padding: 16, width: '100%', marginBottom: 24 }}>
-            <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 2, marginBottom: 8 }}>{t('gameover.summary')}</Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>Turns survived: <Text style={{ color: '#fff', fontWeight: '700' }}>{turn}</Text></Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>Act reached: <Text style={{ color: accentColor, fontWeight: '700' }}>ACT {actPhase}</Text></Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12 }}>Regions held: <Text style={{ color: '#fff', fontWeight: '700' }}>{Object.values(regions).filter(r => r.faction === playerFaction).length}</Text></Text>
-          </View>
-          <View style={{ width: '100%', marginBottom: 32 }}>
-            {(actEvents || []).slice(-3).map((ev, i) => (
-              <Text key={i} style={{ color: '#5a8a9a', fontSize: 10, letterSpacing: 1, marginBottom: 4, textAlign: 'center' }}>{ev}</Text>
-            ))}
-          </View>
-          <TouchableOpacity
-            style={{ backgroundColor: accentColor, paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12 }}
-            onPress={() => useGameStore.setState({ uiMode: 'MENU', isGameOver: false, gameOverReason: null })}
-          >
-            <Text style={{ color: '#05080a', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>{t('gameover.mainMenu')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{ borderWidth: 1, borderColor: '#2c3a44', paddingHorizontal: 40, paddingVertical: 14 }}
-            onPress={() => useGameStore.getState().startGame(playerFaction)}
-          >
-            <Text style={{ color: '#5f727d', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>{t('gameover.newCampaign')}</Text>
-          </TouchableOpacity>
-        </View>
-      </GestureHandlerRootView>
-    );
-  }
 
   const currentFD = FD[playerFaction];
   const currentFS = factions[playerFaction] || { funds: 0, oil: 0, supplies: 0, stability: 100, nukes: 0, techPoints: 0, unlockedTech: [] };
@@ -171,19 +89,19 @@ const App = () => {
             <View style={styles.resourcesContainer}>
               <View style={styles.resourceItem}>
                 <Droplet size={13} color="#ffd700" />
-                <Text style={styles.resourceText}>{currentFS.oil} {t('hud.oil')}</Text>
+                <Text style={styles.resourceText}>{currentFS.oil} OIL</Text>
               </View>
               <View style={styles.resourceItem}>
                 <Layers size={13} color="#bdc3c7" />
-                <Text style={styles.resourceText}>{currentFS.supplies} {t('hud.steel')}</Text>
+                <Text style={styles.resourceText}>{currentFS.supplies} STEEL</Text>
               </View>
               <View style={styles.resourceItem}>
                 <Banknote size={13} color="#2ecc71" />
-                <Text style={styles.resourceText}>${currentFS.funds} {t('hud.money')}</Text>
+                <Text style={styles.resourceText}>${currentFS.funds} MONEY</Text>
               </View>
               <View style={styles.resourceItem}>
                 <Zap size={13} color="#3498db" />
-                <Text style={styles.resourceText}>{currentFS?.stability || 0}% {t('hud.energy')}</Text>
+                <Text style={styles.resourceText}>{currentFS?.stability || 0}% ENERGY</Text>
               </View>
               <TouchableOpacity
                 style={[styles.resourceItem, styles.techPointsItem, showResearch && styles.techPointsActive]}
@@ -191,7 +109,7 @@ const App = () => {
               >
                 <Text style={styles.techPointsIcon}>⚗</Text>
                 <Text style={[styles.techPointsText, (currentFS?.techPoints || 0) > 0 && styles.techPointsAvailable]}>
-                  {currentFS?.techPoints || 0} {t('hud.tp')}
+                  {currentFS?.techPoints || 0} TP
                 </Text>
               </TouchableOpacity>
               {(currentFS.nukes || 0) > 0 && (
@@ -201,33 +119,6 @@ const App = () => {
                 </View>
               )}
             </View>
-            {/* Weather indicator */}
-            {(() => {
-              const wData = { clear:'☀️', rain:'🌧', storm:'⛈', snow:'❄️', heatwave:'🌡', fog:'🌫' };
-              const wLabel = { clear:t('weather.clear'), rain:t('weather.rain'), storm:t('weather.storm'), snow:t('weather.snow'), heatwave:t('weather.heatwave'), fog:t('weather.fog') };
-              return (
-                <View style={{ position: 'absolute', left: 8, bottom: -20, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={{ fontSize: 12 }}>{wData[weather] || '☀️'}</Text>
-                  <Text style={{ color: '#5f727d', fontSize: 8, letterSpacing: 1 }}>{wLabel[weather] || 'CLEAR'}</Text>
-                </View>
-              );
-            })()}
-            {actPhase > 1 && (
-              <View style={{
-                position: 'absolute', left: 0, right: 0, bottom: -22,
-                alignItems: 'center', zIndex: 20, pointerEvents: 'none',
-              }}>
-                <View style={{
-                  backgroundColor: actPhase === 3 ? 'rgba(155,89,182,0.35)' : 'rgba(231,76,60,0.25)',
-                  borderWidth: 1, borderColor: actPhase === 3 ? '#9b59b6' : '#e74c3c',
-                  paddingHorizontal: 14, paddingVertical: 2,
-                }}>
-                  <Text style={{ color: actPhase === 3 ? '#be8ef5' : '#e74c3c', fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>
-                    {actPhase === 2 ? '⚔ ACT II · GLOBAL WAR' : '☢ ACT III · ESCALATION'}
-                  </Text>
-                </View>
-              </View>
-            )}
             <TouchableOpacity style={styles.menuIcon} onPress={() => useGameStore.setState({ uiMode: 'MENU' })}>
               <Menu color="#a0c8e0" size={20} />
             </TouchableOpacity>
@@ -239,12 +130,17 @@ const App = () => {
             {/* TACTICAL BRIEFING — top left */}
             <View style={styles.briefingPanel} pointerEvents="box-none">
               <View style={styles.briefingHeader}>
-                <Text style={styles.briefingTitle}>{t('briefing.title')}</Text>
+                <Text style={styles.briefingTitle}>TACTICAL BRIEFING</Text>
+                <View style={[styles.actBadge, act === 3 && styles.actBadge3, act === 2 && styles.actBadge2]}>
+                  <Text style={styles.actBadgeText}>
+                    {act === 1 ? 'ACT I' : act === 2 ? 'ACT II' : 'ACT III'}
+                  </Text>
+                </View>
               </View>
               <View style={styles.briefingList}>
                 {(gameLog || []).slice(0, 4).map((log, i) => (
                   <View key={i} style={styles.logEntry}>
-                    <Text style={styles.logEntryTitle}>{t('briefing.missionReport')}</Text>
+                    <Text style={styles.logEntryTitle}>MISSION REPORT:</Text>
                     <Text style={[styles.logText, i === 0 && { color: '#fff', fontWeight: 'bold' }]}>{log}</Text>
                   </View>
                 ))}
@@ -275,7 +171,7 @@ const App = () => {
               <View style={styles.intelHeader}>
                 <View style={styles.intelHeaderAccent} />
                 <Text style={styles.intelTitle}>
-                  {selectedRegionId ? selectedRegionId.replace(/_/g,' ').toUpperCase() : t('hud.regionIntel')}
+                  {selectedRegionId ? selectedRegionId.replace(/_/g,' ').toUpperCase() : 'REGION INTEL'}
                 </Text>
               </View>
               {selectedRegion ? (
@@ -289,9 +185,9 @@ const App = () => {
                   </View>
                   <View style={styles.intelDivider} />
                   {[
-                    { label: t('hud.eco'), raw: selectedRegion.economy || 0, max: 100, color: '#f39c12' },
-                    { label: t('hud.ind'), raw: selectedRegion.industry || 0, max: 25, color: '#3498db' },
-                    { label: t('hud.stb'), raw: selectedRegion.stability || 0, max: 100, color: (selectedRegion.stability || 0) > 60 ? '#2ecc71' : '#e74c3c' },
+                    { label: 'ECO', raw: selectedRegion.economy || 0, max: 100, color: '#f39c12' },
+                    { label: 'IND', raw: selectedRegion.industry || 0, max: 25, color: '#3498db' },
+                    { label: 'STB', raw: selectedRegion.stability || 0, max: 100, color: (selectedRegion.stability || 0) > 60 ? '#2ecc71' : '#e74c3c' },
                   ].map(row => (
                     <View key={row.label} style={styles.intelStatRow}>
                       <Text style={styles.intelStatLabel}>{row.label}</Text>
@@ -306,9 +202,9 @@ const App = () => {
                   ))}
                   <View style={styles.intelDivider} />
                   <View style={styles.intelUnitsRow}>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.infantry')} {selectedRegion.infantry || 0}</Text></View>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.armor')} {selectedRegion.armor || 0}</Text></View>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.air')} {selectedRegion.air || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>⚔ {selectedRegion.infantry || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>🛡 {selectedRegion.armor || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>✈ {selectedRegion.air || 0}</Text></View>
                   </View>
                 </View>
               ) : (
@@ -339,51 +235,7 @@ const App = () => {
                     </View>
                   </View>
                   {/* Special actions vs enemy regions */}
-                  {/* Spy action button */}
-              {selectedRegion && (
-                <TouchableOpacity
-                  style={{ marginBottom: 4, paddingVertical: 6, paddingHorizontal: 10,
-                    borderWidth: 1, borderColor: '#8e44ad',
-                    backgroundColor: 'rgba(142,68,173,0.15)' }}
-                  onPress={() => setShowSpyMenu(!showSpyMenu)}
-                >
-                  <Text style={{ color: '#be8ef5', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }}>
-                    {t('spy.title')} {showSpyMenu ? '▲' : '▼'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {showSpyMenu && selectedRegion && (
-                <View style={{ borderWidth: 1, borderColor: '#2c3a44', padding: 8, marginBottom: 4, gap: 4 }}>
-                  {selectedRegion.faction !== playerFaction && (
-                    <>
-                      <TouchableOpacity
-                        style={{ paddingVertical: 5, paddingHorizontal: 8, backgroundColor: 'rgba(52,152,219,0.2)', borderWidth: 1, borderColor: '#3498db' }}
-                        onPress={() => { spyReveal(selectedRegionId); setShowSpyMenu(false); audio.play('alert'); }}
-                      >
-                        <Text style={{ color: '#3498db', fontSize: 10, letterSpacing: 1 }}>{t('spy.reveal')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{ paddingVertical: 5, paddingHorizontal: 8, backgroundColor: 'rgba(231,76,60,0.2)', borderWidth: 1, borderColor: '#e74c3c' }}
-                        onPress={() => { spySabotage(selectedRegionId); setShowSpyMenu(false); audio.play('attack'); }}
-                      >
-                        <Text style={{ color: '#e74c3c', fontSize: 10, letterSpacing: 1 }}>{t('spy.sabotage')}</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                  {selectedRegion.faction !== playerFaction && selectedRegion.faction !== 'NEUTRAL' && (
-                    <TouchableOpacity
-                      style={{ paddingVertical: 5, paddingHorizontal: 8, backgroundColor: 'rgba(155,89,182,0.2)', borderWidth: 1, borderColor: '#9b59b6' }}
-                      onPress={() => { spyAssassinate(selectedRegion.faction); setShowSpyMenu(false); audio.play('crisis'); }}
-                    >
-                      <Text style={{ color: '#9b59b6', fontSize: 10, letterSpacing: 1 }}>{t('spy.assassinate')}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => setShowSpyMenu(false)}>
-                    <Text style={{ color: '#5f727d', fontSize: 9, textAlign: 'center', marginTop: 2 }}>{t('card.close')}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {selectedRegion?.faction !== playerFaction && selectedRegion?.faction !== 'NEUTRAL' && (
+                  {selectedRegion?.faction !== playerFaction && selectedRegion?.faction !== 'NEUTRAL' && (
                     <View style={styles.specialActionsBar}>
                       {/* NUCLEAR — ultimate, requires stockpile + once per turn */}
                       <TouchableOpacity
@@ -393,7 +245,7 @@ const App = () => {
                       >
                         <Text style={styles.specialBtnIcon}>☢</Text>
                         <Text style={[styles.specialBtnLabel, !canNuke && { color: '#444' }]}>
-                          {t('action.nuke')}{'\n'}
+                          NUKE{'\n'}
                           <Text style={styles.specialBtnSub}>{currentFS.nukes}▸</Text>
                         </Text>
                       </TouchableOpacity>
@@ -406,8 +258,8 @@ const App = () => {
                       >
                         <Text style={styles.specialBtnIcon}>⚡</Text>
                         <Text style={[styles.specialBtnLabel, !canOrbital && { color: '#444' }]}>
-                          {t('action.orbital')}{'\n'}
-                          <Text style={styles.specialBtnSub}>{canOrbital ? t('hud.ready') : t('hud.locked')}</Text>
+                          ORBITAL{'\n'}
+                          <Text style={styles.specialBtnSub}>{canOrbital ? 'READY' : 'LOCKED'}</Text>
                         </Text>
                       </TouchableOpacity>
 
@@ -419,8 +271,8 @@ const App = () => {
                       >
                         <Text style={styles.specialBtnIcon}>📡</Text>
                         <Text style={[styles.specialBtnLabel, !canBlackout && { color: '#444' }]}>
-                          {t('action.blackout')}{'\n'}
-                          <Text style={styles.specialBtnSub}>{canBlackout ? t('hud.ready') : t('hud.locked')}</Text>
+                          BLACKOUT{'\n'}
+                          <Text style={styles.specialBtnSub}>{canBlackout ? 'READY' : 'LOCKED'}</Text>
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -433,11 +285,11 @@ const App = () => {
           {/* BOTTOM NAV — real styled tabs */}
           <View style={styles.bottomNavBar}>
             {[
-              { label: t('nav.map'),      icon: '🗺',  onPress: () => { setShowEconomy(false); setShowDiplomacy(false); setShowResearch(false); }, active: mapActive },
-              { label: t('nav.deploy'),   icon: '⚙',  onPress: () => { setShowEconomy(!showEconomy); setShowDiplomacy(false); setShowResearch(false); }, active: showEconomy },
-              { label: t('nav.research'), icon: '⚗',  onPress: () => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }, active: showResearch },
-              { label: t('nav.alliance'), icon: '🤝',  onPress: () => { setShowDiplomacy(!showDiplomacy); setShowEconomy(false); setShowResearch(false); }, active: showDiplomacy },
-              { label: t('nav.endTurn'), icon: '▶',  onPress: () => useGameStore.getState().endTurn(), active: false, danger: true },
+              { label: 'MAP',      icon: '🗺',  onPress: () => { setShowEconomy(false); setShowDiplomacy(false); setShowResearch(false); }, active: mapActive },
+              { label: 'DEPLOY',   icon: '⚙',  onPress: () => { setShowEconomy(!showEconomy); setShowDiplomacy(false); setShowResearch(false); }, active: showEconomy },
+              { label: 'RESEARCH', icon: '⚗',  onPress: () => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }, active: showResearch },
+              { label: 'ALLIANCE', icon: '🤝',  onPress: () => { setShowDiplomacy(!showDiplomacy); setShowEconomy(false); setShowResearch(false); }, active: showDiplomacy },
+              { label: 'END TURN', icon: '▶',  onPress: () => useGameStore.getState().endTurn(), active: false, danger: true },
             ].map((tab, i) => (
               <TouchableOpacity
                 key={i}
@@ -465,6 +317,17 @@ const App = () => {
       {showDiplomacy && <DiplomacyPanel onClose={() => setShowDiplomacy(false)} />}
       {showResearch && <ResearchPanel onClose={() => setShowResearch(false)} />}
 
+      {/* ACT TRANSITION BANNER — fades in/out automatically */}
+      {actJustChanged && (
+        <ActBanner
+          act={act}
+          onDone={() => useGameStore.setState({ actJustChanged: false })}
+        />
+      )}
+
+      {/* GAME OVER SCREEN — full overlay */}
+      {isGameOver && <GameOverScreen />}
+
       {/* NUCLEAR LAUNCH CONFIRMATION MODAL */}
       {showNukeModal && selectedRegionId && (
         <View style={styles.nukeOverlay}>
@@ -476,11 +339,11 @@ const App = () => {
               {playerMods.tacticalNukes && <Text style={styles.nukeModalTech}>✓ Tactical Warheads — region will be captured</Text>}
               {(playerMods.nukeDamageMult || 1) >= 1.5 && <Text style={styles.nukeModalTech}>✓ MIRV Arsenal — total annihilation + economy damage</Text>}
               <Text style={styles.nukeModalWarn}>Global stability −8 for all factions</Text>
-              <Text style={styles.nukeModalWarn}>{t('nuke.oneUse')}</Text>
+              <Text style={styles.nukeModalWarn}>One use per turn</Text>
             </View>
             <View style={styles.nukeModalBtns}>
               <TouchableOpacity style={styles.nukeCancelBtn} onPress={() => setShowNukeModal(false)}>
-                <Text style={styles.nukeCancelTxt}>{t('nuke.abort')}</Text>
+                <Text style={styles.nukeCancelTxt}>ABORT</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.nukeConfirmBtn}
@@ -649,6 +512,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
   },
+  actBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(58,158,255,0.4)',
+    backgroundColor: 'rgba(58,158,255,0.08)',
+  },
+  actBadge2: {
+    borderColor: 'rgba(230,126,34,0.5)',
+    backgroundColor: 'rgba(230,126,34,0.1)',
+  },
+  actBadge3: {
+    borderColor: 'rgba(155,89,182,0.5)',
+    backgroundColor: 'rgba(155,89,182,0.1)',
+  },
+  actBadgeText: {
+    color: '#3a9eff',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
   aiIntelBlock: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
@@ -669,7 +554,7 @@ const styles = StyleSheet.create({
   // TERRAIN INTEL panel
   intelPanel: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 42,
     left: 0,
     width: 160,
     backgroundColor: 'rgba(6,14,26,0.92)',

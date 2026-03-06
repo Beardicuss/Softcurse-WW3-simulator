@@ -9,7 +9,8 @@
  */
 
 import { useCallback } from 'react';
-import useGameStore from '../store/useGameStore';
+// lazy import to break require cycle
+const getStore = () => require('../store/useGameStore').default;
 
 // ─── Translation Table ────────────────────────────────────────────────────────
 
@@ -328,7 +329,7 @@ export const TRANSLATIONS = {
  * Example: t('log.turnCompleted', { n: 5 }) → "Turn 5 completed."
  */
 export function useTranslation() {
-  const lang = useGameStore(state => state.settings?.language || 'en') || 'en';
+  const lang = getStore()(state => state.settings?.language || 'en') || 'en';
 
   const t = useCallback((key, vars = {}) => {
     try {

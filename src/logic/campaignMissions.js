@@ -434,6 +434,214 @@ export const CAMPAIGN_MISSIONS = [
         }
     },
 
+
+    // ── ACT II SPECIAL MISSIONS ───────────────────────────────────────────────
+
+    {
+        id: 'mission_13',
+        order: 13,
+        title:     'Scorched Earth',
+        titleRu:   'Выжженная земля',
+        briefing:  'The enemy is using occupied territories as staging grounds. Hit them where it hurts — sabotage 3 enemy regions in a single campaign. Leave nothing operational.',
+        briefingRu:'Враг использует оккупированные территории как плацдармы. Ударьте в самое больное — проведите диверсии в 3 регионах врага. Не оставляйте ничего рабочего.',
+        triggerTurn: 14,
+        requires: 'mission_05',
+        objectives: [
+            {
+                id: 'obj_13_sabotage',
+                descEn: 'Sabotage 3 enemy regions',
+                descRu: 'Провести диверсии в 3 регионах врага',
+                type: 'spy_sabotage',
+                target: 3,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 400,
+            oil: 0,
+            supplies: 300,
+            techPoints: 1,
+            stability: 8,
+            desc:   '+400 Funds, +300 Supplies, +1 Tech Point',
+            descRu: '+400 Средства, +300 Снабжение, +1 Науч. очко',
+        }
+    },
+
+    {
+        id: 'mission_14',
+        order: 14,
+        title:     'Naval Supremacy',
+        titleRu:   'Морское превосходство',
+        briefing:  'Our coastal flanks are exposed. Build a complete naval task force — a destroyer, a submarine, and a carrier. Control the seas, control the war.',
+        briefingRu:'Наши прибрежные фланги открыты. Сформируйте полноценную военно-морскую группу — эсминец, подлодку и авианосец. Контролируй моря — контролируй войну.',
+        triggerTurn: 18,
+        requires: 'mission_05',
+        objectives: [
+            {
+                id: 'obj_14_destroyer',
+                descEn: 'Build a Destroyer',
+                descRu: 'Построить эсминец',
+                type: 'build_naval',
+                target: 1,
+                progress: 0,
+            },
+            {
+                id: 'obj_14_coastal3',
+                descEn: 'Own 3 coastal regions',
+                descRu: 'Владеть 3 прибрежными регионами',
+                type: 'own_coastal',
+                target: 3,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 600,
+            oil: 400,
+            supplies: 0,
+            techPoints: 2,
+            stability: 0,
+            desc:   '+600 Funds, +400 Oil, +2 Tech Points',
+            descRu: '+600 Средства, +400 Нефть, +2 Науч. очка',
+        }
+    },
+
+    {
+        id: 'mission_15',
+        order: 15,
+        title:     'Decapitation Strike',
+        titleRu:   'Обезглавливающий удар',
+        briefing:  'Enemy leadership is coordinating a devastating counter-offensive. Eliminate their command structure. Two assassinations. Make them afraid to give orders.',
+        briefingRu:'Командование врага координирует сокрушительное контрнаступление. Ликвидируйте их командную вертикаль. Два убийства. Пусть боятся отдавать приказы.',
+        triggerTurn: 20,
+        requires: 'mission_13',
+        objectives: [
+            {
+                id: 'obj_15_assassinate',
+                descEn: 'Assassinate 2 enemy leaders',
+                descRu: 'Ликвидировать 2 вражеских лидера',
+                type: 'spy_assassinate_count',
+                target: 2,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 500,
+            oil: 0,
+            supplies: 0,
+            techPoints: 2,
+            stability: 20,
+            desc:   '+500 Funds, +2 Tech Points, +20 Stability',
+            descRu: '+500 Средства, +2 Науч. очка, +20 Стабильность',
+        }
+    },
+
+    // ── ACT III SPECIAL MISSIONS ──────────────────────────────────────────────
+
+    {
+        id: 'mission_16',
+        order: 16,
+        title:     'Survive the Fire',
+        titleRu:   'Выжить в огне',
+        briefing:  'Nuclear fallout is destabilising everything. Survive 8 turns in Act III without your stability dropping below 30. Discipline and resource management will decide everything.',
+        briefingRu:'Ядерные осадки дестабилизируют всё. Продержитесь 8 ходов в Акте III, не допустив падения стабильности ниже 30. Дисциплина и управление ресурсами решат всё.',
+        triggerTurn: 28,
+        requires: 'mission_09',
+        objectives: [
+            {
+                id: 'obj_16_act3',
+                descEn: 'Reach Act III',
+                descRu: 'Достичь Акта III',
+                type: 'reach_act',
+                target: 3,
+                progress: 0,
+            },
+            {
+                id: 'obj_16_survive',
+                descEn: 'Survive 8 turns in Act III with stability ≥ 30',
+                descRu: 'Продержаться 8 ходов в Акте III со стабильностью ≥ 30',
+                type: 'act3_stability_turns',
+                target: 8,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 800,
+            oil: 300,
+            supplies: 500,
+            techPoints: 0,
+            stability: 25,
+            desc:   '+800 Funds, +300 Oil, +25 Stability',
+            descRu: '+800 Средства, +300 Нефть, +25 Стабильность',
+        }
+    },
+
+    {
+        id: 'mission_17',
+        order: 17,
+        title:     'Arsenal of Victory',
+        titleRu:   'Арсенал победы',
+        briefing:  'You need overwhelming force to end this. Unlock 4 technology nodes and maintain a combined army of at least 50 units across all your regions. Superior firepower wins wars.',
+        briefingRu:'Для окончания войны нужна подавляющая сила. Разблокируйте 4 узла технологий и поддерживайте армию не менее 50 единиц. Превосходящая огневая мощь выигрывает войны.',
+        triggerTurn: 30,
+        requires: 'mission_11',
+        objectives: [
+            {
+                id: 'obj_17_tech',
+                descEn: 'Unlock 4 technology nodes',
+                descRu: 'Разблокировать 4 узла технологий',
+                type: 'unlock_tech',
+                target: 4,
+                progress: 0,
+            },
+            {
+                id: 'obj_17_army',
+                descEn: 'Maintain 50+ total units',
+                descRu: 'Поддерживать 50+ единиц армии',
+                type: 'total_units',
+                target: 50,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 700,
+            oil: 300,
+            supplies: 300,
+            techPoints: 3,
+            stability: 10,
+            desc:   '+700 Funds, +3 Tech Points, +10 Stability',
+            descRu: '+700 Средства, +3 Науч. очка, +10 Стабильность',
+        }
+    },
+
+    {
+        id: 'mission_18',
+        order: 18,
+        title:     'Absolute Victory',
+        titleRu:   'Абсолютная победа',
+        briefing:  'This is the end. Complete the campaign — eliminate both rival factions or control 60% of all regions. The world will remember this moment for a thousand years.',
+        briefingRu:'Это конец. Завершите кампанию — уничтожьте обе фракции-соперника или контролируйте 60% всех регионов. Мир будет помнить этот момент тысячу лет.',
+        triggerTurn: 35,
+        requires: 'mission_12',
+        objectives: [
+            {
+                id: 'obj_18_domination',
+                descEn: 'Control 70% of all regions',
+                descRu: 'Контролировать 70% всех регионов',
+                type: 'domination',
+                target: 70,
+                progress: 0,
+            }
+        ],
+        reward: {
+            funds: 0,
+            oil: 0,
+            supplies: 0,
+            techPoints: 0,
+            stability: 0,
+            desc:   'Grand Victory — All Campaigns Complete',
+            descRu: 'Великая Победа — Все кампании завершены',
+        }
+    },
 ];
 
 // ── Mission Progress Evaluator ─────────────────────────────────────────────────
@@ -577,6 +785,26 @@ export function evaluateMissions(state, missionProgress, trackedStats) {
                     done = pct >= obj.target;
                     break;
                 }
+                case 'spy_assassinate_count':
+                    val = trackedStats?.assassinations || 0;
+                    done = val >= obj.target;
+                    break;
+                case 'act3_stability_turns':
+                    if (actPhase >= 3) {
+                        val = (fac.stability || 0) >= 30
+                            ? Math.min(obj.target, (prog.objectiveProgress[obj.id] || 0) + 1)
+                            : (prog.objectiveProgress[obj.id] || 0);
+                    } else {
+                        val = prog.objectiveProgress[obj.id] || 0;
+                    }
+                    done = val >= obj.target;
+                    break;
+                case 'total_units':
+                    val = ownedRegions.reduce((sum, [, r]) =>
+                        sum + (r.infantry||0) + (r.armor||0) + (r.air||0) +
+                        (r.destroyer||0) + (r.submarine||0) + (r.carrier||0), 0);
+                    done = val >= obj.target;
+                    break;
             }
 
             prog.objectiveProgress[obj.id] = val;

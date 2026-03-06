@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, ScrollView } from 'react-native';
 import { Shield, Shuffle, Skull, Zap, Activity, HardHat, AlertTriangle, Crosshair } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
 import { useTranslation } from '../i18n/i18n';
@@ -8,6 +8,14 @@ import { FD } from '../data/mapData';
 const { height } = Dimensions.get('window');
 
 const DiplomacyPanel = ({ onClose }) => {
+    const slideAnim = React.useRef(new Animated.Value(30)).current;
+    const fadeAnim  = React.useRef(new Animated.Value(0)).current;
+    React.useEffect(() => {
+        Animated.parallel([
+            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+        ]).start();
+    }, []);
     const t = useTranslation();
     const { factions, playerFaction, regions } = useGameStore();
     const factionData = factions[playerFaction];
@@ -82,7 +90,7 @@ const DiplomacyPanel = ({ onClose }) => {
     const enemies = ['EAST', 'CHINA'].filter(f => f !== playerFaction);
 
     return (
-        <View style={styles.panel}>
+        <Animated.View style={[styles.panel, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t('diplomacy.header')}</Text>
                 <TouchableOpacity onPress={onClose}>
@@ -178,7 +186,7 @@ const DiplomacyPanel = ({ onClose }) => {
                 </View>
 
             </ScrollView>
-        </View>
+        </Animated.View>
     );
 };
 

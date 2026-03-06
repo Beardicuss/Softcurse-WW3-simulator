@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { Shield, Rocket, Plane, Zap, Activity, HardHat, Anchor } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
 import { COASTAL_REGIONS } from '../logic/gameLogic';
@@ -8,6 +8,14 @@ import { useTranslation } from '../i18n/i18n';
 const { height } = Dimensions.get('window');
 
 const EconomyPanel = ({ onClose }) => {
+    const slideAnim = React.useRef(new Animated.Value(30)).current;
+    const fadeAnim  = React.useRef(new Animated.Value(0)).current;
+    React.useEffect(() => {
+        Animated.parallel([
+            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+        ]).start();
+    }, []);
     const t = useTranslation();
     const { factions, playerFaction, regions, selectedRegionId, buildUnit } = useGameStore();
 
@@ -52,7 +60,7 @@ const EconomyPanel = ({ onClose }) => {
     };
 
     return (
-        <View style={styles.panel}>
+        <Animated.View style={[styles.panel, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <View style={styles.header}>
                 <Text style={styles.title}>{t('economy.header')}</Text>
                 <TouchableOpacity onPress={onClose}>
@@ -97,7 +105,7 @@ const EconomyPanel = ({ onClose }) => {
             {selectedRegion && !COASTAL_REGIONS.has(selectedRegionId) && selectedRegion.faction === playerFaction && (
                 <Text style={styles.navalLocked}>🌊 Naval units require a coastal region</Text>
             )}
-        </View>
+        </Animated.View>
     );
 };
 

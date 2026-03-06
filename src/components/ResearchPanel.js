@@ -10,6 +10,14 @@ import { TECH_BRANCHES, TECH_NODES, TECH_BY_ID, isExcluded } from '../data/techT
 const { width, height } = Dimensions.get('window');
 
 const ResearchPanel = ({ onClose }) => {
+    const slideAnim = React.useRef(new Animated.Value(30)).current;
+    const fadeAnim  = React.useRef(new Animated.Value(0)).current;
+    React.useEffect(() => {
+        Animated.parallel([
+            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+        ]).start();
+    }, []);
     const t = useTranslation();
     const { factions, playerFaction, researchTech } = useGameStore();
     const fac = factions[playerFaction];
@@ -34,7 +42,7 @@ const ResearchPanel = ({ onClose }) => {
 
     return (
         <View style={styles.overlay}>
-            <View style={styles.panel}>
+            <Animated.View style={[styles.panel, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
                 {/* Header */}
                 <View style={styles.header}>
@@ -183,7 +191,7 @@ const ResearchPanel = ({ onClose }) => {
                     </View>
                 )}
 
-            </View>
+            </Animated.View>
         </View>
     );
 };
