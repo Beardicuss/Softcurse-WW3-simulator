@@ -25,7 +25,9 @@
  */
 
 import { useEffect, useCallback } from 'react';
-import { Audio } from 'expo-av';
+// Guard expo-av — may not be available in all environments
+let Audio = null;
+try { Audio = require('expo-av').Audio; } catch (e) { /* expo-av not installed */ }
 import useGameStore from '../store/useGameStore';
 
 // ─── Asset Map ────────────────────────────────────────────────────────────────
@@ -86,6 +88,7 @@ class AudioManager {
     }
 
     async _setup() {
+        if (!Audio) return; // expo-av not available, use haptics only
         try {
             await Audio.setAudioModeAsync({
                 playsInSilentModeIOS:    true,
@@ -93,7 +96,7 @@ class AudioManager {
                 shouldDuckAndroid:       true,
             });
         } catch (e) {
-            console.warn('[Audio] setup failed:', e.message);
+            // silently degrade — haptic feedback still works
         }
     }
 
@@ -105,6 +108,7 @@ class AudioManager {
         try {
             let sound = this._cache[key];
             if (!sound) {
+                if (!Audio) return;
                 const { sound: s } = await Audio.Sound.createAsync(asset, { shouldPlay: false });
                 this._cache[key] = s;
                 sound = s;
@@ -117,7 +121,7 @@ class AudioManager {
     }
 
     async playMusic(trackKey) {
-        if (!this.musicEnabled || this.musicVolume === 0) return;
+        if (!Audio || !this.musicEnabled || this.musicVolume === 0) return;
         if (this._track === trackKey) return;
         await this.stopMusic();
         const asset = AUDIO_ASSETS[trackKey];

@@ -115,7 +115,7 @@ const IntroScreen = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             {/* Header matches prototype precisely */}
             <View style={styles.header}>
                 <View style={styles.headerCenter}>
@@ -147,7 +147,7 @@ const IntroScreen = () => {
                             <Text style={styles.finalDesc}>
                                 Every conflict, every miscalculation, every broken treaty led to this moment.{"\n"}
                                 Three superpowers now control the fate of civilization.{"\n"}
-                                <Text style={styles.finalHighlight}>You are one of them.</Text>
+                                <Text style={styles.finalHighlight}>{t('intro.youAreOne')}</Text>
                             </Text>
                             <TouchableOpacity style={styles.continueBtn} onPress={() => setUiMode('MENU')}>
                                 <Text style={styles.continueText}>{t('intro.enter')}</Text>
@@ -162,7 +162,7 @@ const IntroScreen = () => {
                     <Text style={styles.skipText}>SKIP &gt;&gt;</Text>
                 </TouchableOpacity>
             )}
-        </SafeAreaView>
+        </View>
     );
 };
 

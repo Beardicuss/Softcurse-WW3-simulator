@@ -8,9 +8,7 @@
  *   <Text>{t('settings.title')}</Text>
  */
 
-import { useCallback } from 'react';
-// lazy import to break require cycle
-const getStore = () => require('../store/useGameStore').default;
+import React, { useCallback } from 'react';
 
 // ─── Translation Table ────────────────────────────────────────────────────────
 
@@ -319,6 +317,106 @@ export const TRANSLATIONS = {
   'nuke.cancel':          { en: 'ABORT',                    ru: 'ОТМЕНА' },
   'nuke.stockpile':       { en: 'Warheads remaining:',      ru: 'Боеголовок осталось:' },
 
+  // ── NEW FACTIONS (Phase 8) ─────────────────────────────────────────────────
+  'faction.india.name':   { en: 'South Asian Bloc',          ru: 'Южноазиатский блок' },
+  'faction.india.desc':   { en: 'Rising superpower with nuclear arsenal and massive population.', ru: 'Растущая сверхдержава с ядерным арсеналом и огромным населением.' },
+  'faction.latam.name':   { en: 'Latin League',              ru: 'Латинская лига' },
+  'faction.latam.desc':   { en: 'Resource-rich coalition uniting South America, Central America and Caribbean.', ru: 'Богатая ресурсами коалиция, объединяющая Южную и Центральную Америку.' },
+
+  // ── LEADERBOARD & ACHIEVEMENTS ────────────────────────────────────────────
+  'lb.title':             { en: 'ACHIEVEMENTS & LEADERBOARD', ru: 'ДОСТИЖЕНИЯ И РЕЙТИНГ' },
+  'lb.unlocked':          { en: 'unlocked',                  ru: 'разблокировано' },
+  'lb.tab.rank':          { en: 'LEADERBOARD',               ru: 'РЕЙТИНГ' },
+  'lb.tab.ach':           { en: 'ACHIEVEMENTS',              ru: 'ДОСТИЖЕНИЯ' },
+  'lb.empty':             { en: 'No runs recorded yet. Finish a game to appear here.', ru: 'Нет записей. Завершите игру, чтобы войти в рейтинг.' },
+  'lb.noRuns':            { en: 'No runs yet',               ru: 'Нет игр' },
+  'lb.score':             { en: 'SCORE',                     ru: 'ОЧКИ' },
+  'lb.turns':             { en: 'Turns',                     ru: 'Ходов' },
+  'lb.regions':           { en: 'Regions',                   ru: 'Регионов' },
+  'lb.reason.victory':    { en: 'VICTORY',                   ru: 'ПОБЕДА' },
+  'lb.reason.military':   { en: 'DEFEAT',                    ru: 'ПОРАЖЕНИЕ' },
+  'lb.reason.collapse':   { en: 'COLLAPSE',                  ru: 'КОЛЛАПС' },
+  'lb.reason.nuclear':    { en: 'ANNIHILATED',               ru: 'УНИЧТОЖЕН' },
+  'lb.cat.all':           { en: 'ALL',                       ru: 'ВСЕ' },
+  'lb.cat.conquest':      { en: 'Conquest',                  ru: 'Завоевание' },
+  'lb.cat.economy':       { en: 'Economy',                   ru: 'Экономика' },
+  'lb.cat.spy':           { en: 'Intelligence',              ru: 'Разведка' },
+  'lb.cat.survival':      { en: 'Survival',                  ru: 'Выживание' },
+  'lb.cat.nuclear':       { en: 'Nuclear',                   ru: 'Ядерное' },
+  'lb.cat.campaign':      { en: 'Campaign',                  ru: 'Кампания' },
+  'lb.ach.unlockedTurn':  { en: 'Turn',                      ru: 'Ход' },
+  'lb.ach.unlocked':      { en: 'ACHIEVEMENT UNLOCKED',      ru: 'ДОСТИЖЕНИЕ РАЗБЛОКИРОВАНО' },
+
+  // ── TRADE PANEL ───────────────────────────────────────────────────────────
+  'trade.title':          { en: 'DIPLOMACY & ECONOMY',       ru: 'ДИПЛОМАТИЯ И ЭКОНОМИКА' },
+  'trade.tab.trade':      { en: '📦 TRADE',                  ru: '📦 ТОРГОВЛЯ' },
+  'trade.tab.sanctions':  { en: '🚫 SANCTIONS',              ru: '🚫 САНКЦИИ' },
+  'trade.tab.blockade':   { en: '⚓ BLOCKADE',               ru: '⚓ БЛОКАДА' },
+  'trade.activeRoutes':   { en: 'ACTIVE ROUTES',             ru: 'АКТИВНЫЕ МАРШРУТЫ' },
+  'trade.newDeal':        { en: 'NEW DEAL',                  ru: 'НОВАЯ СДЕЛКА' },
+  'trade.partner':        { en: 'Trade Partner',             ru: 'Торговый партнёр' },
+  'trade.youOffer':       { en: 'You Offer',                 ru: 'Вы предлагаете' },
+  'trade.youRequest':     { en: 'You Request',               ru: 'Вы запрашиваете' },
+  'trade.establish':      { en: '📦 ESTABLISH ROUTE',        ru: '📦 УСТАНОВИТЬ МАРШРУТ' },
+  'trade.turnsLeft':      { en: 'turns left',                ru: 'ходов осталось' },
+  'trade.selectFaction':  { en: 'Select a target faction',   ru: 'Выберите фракцию' },
+  'trade.established':    { en: '✓ Trade route established', ru: '✓ Торговый путь установлен' },
+  'trade.sanctions.title': { en: 'ECONOMIC SANCTIONS',       ru: 'ЭКОНОМИЧЕСКИЕ САНКЦИИ' },
+  'trade.sanctions.desc': { en: "Freeze 8% of a faction's funds each turn for 5 turns. Cost: 400 funds.", ru: 'Заморозьте 8% средств цели каждый ход на 5 ходов. Стоимость: 400 средств.' },
+  'trade.sanctions.active': { en: 'turns remaining',         ru: 'ходов осталось' },
+  'trade.sanctions.none': { en: 'Not sanctioned',            ru: 'Не под санкциями' },
+  'trade.sanctions.impose': { en: 'IMPOSE',                  ru: 'ВВЕСТИ' },
+  'trade.sanctions.imposed': { en: '✓ Sanctions imposed',   ru: '✓ Санкции введены' },
+  'trade.blockade.title': { en: 'NAVAL BLOCKADE',            ru: 'МОРСКАЯ БЛОКАДА' },
+  'trade.blockade.desc':  { en: 'Blockade the selected region: -30 oil/turn for 4 turns. Cost: 300 funds.', ru: 'Блокируйте выбранный регион: -30 нефти в ход на 4 хода. Стоимость: 300 средств.' },
+  'trade.blockade.selected': { en: 'Selected Region',        ru: 'Выбранный регион' },
+  'trade.blockade.hint':  { en: '← Select an enemy region on the map', ru: '← Выберите вражеский регион на карте' },
+  'trade.blockade.impose': { en: '⚓ IMPOSE BLOCKADE',       ru: '⚓ ВВЕСТИ БЛОКАДУ' },
+  'trade.blockade.imposed': { en: '✓ Blockade imposed',      ru: '✓ Блокада введена' },
+  'trade.blockade.active': { en: 'ACTIVE BLOCKADES',         ru: 'АКТИВНЫЕ БЛОКАДЫ' },
+  'trade.blockade.selectFirst': { en: 'Select a region on the map first', ru: 'Сначала выберите регион на карте' },
+  'trade.faction':        { en: 'Faction',                   ru: 'Фракция' },
+  'trade.res.funds':      { en: 'Funds',                     ru: 'Средства' },
+  'trade.res.oil':        { en: 'Oil',                       ru: 'Нефть' },
+  'trade.res.supplies':   { en: 'Supplies',                  ru: 'Снабж.' },
+  'trade.res.techPoints': { en: 'Tech Pts',                  ru: 'Наука' },
+
+  // ── BOTTOM NAV NEW BUTTONS ────────────────────────────────────────────────
+  'nav.stats':            { en: 'STATS',                     ru: 'СТАТ' },
+  'nav.rank':             { en: 'RANK',                      ru: 'РЕЙТ' },
+  'nav.trade':            { en: 'TRADE',                     ru: 'ТОРГ' },
+
+  // ── DIPLOMACY PANEL (Phase 8 missing) ─────────────────────────────────────
+  'diplomacy.tradeDesc':    { en: 'Bypass embargoes. Pay a premium for immediate material reserves.', ru: 'Обойти эмбарго. Заплатить премию за немедленные резервы.' },
+  'diplomacy.tradeCost':    { en: 'COST: $200',           ru: 'СТОИМОСТЬ: $200' },
+  'diplomacy.tradeGain':    { en: 'GAIN: 50 OIL / 100 SUP', ru: 'ПОЛУЧИТЬ: 50 НЕФ / 100 СНБ' },
+  'diplomacy.sanctionDesc': { en: 'Launch SWIFT/cyber attacks to vaporize enemy funds and cripple morale.', ru: 'SWIFT/кибератаки для уничтожения фондов врага и подрыва морали.' },
+  'diplomacy.sanctionCost': { en: 'COST: $500',           ru: 'СТОИМОСТЬ: $500' },
+  'diplomacy.sanctionEffect':{ en: 'TARGET: -15 STAB / -$400', ru: 'ЦЕЛЬ: -15 СТБ / -$400' },
+
+  // ── INTRO SCREEN ───────────────────────────────────────────────────────────
+  'intro.youAreOne':        { en: 'You are one of them.', ru: 'Вы один из них.' },
+
+  // ── CAMPAIGN (missing) ────────────────────────────────────────────────────
+  'campaign.missionComplete': { en: 'MISSION COMPLETE',   ru: 'МИССИЯ ВЫПОЛНЕНА' },
+
+  // ── HUD (missing) ─────────────────────────────────────────────────────────
+  'hud.processing':         { en: 'PROCESSING...',        ru: 'ОБРАБОТКА...' },
+  'intel.detected':         { en: 'detected',             ru: 'обнаружено' },
+  'intel.tapRegion':        { en: 'Tap a region\nto view intel', ru: 'Нажмите на регион\nдля разведданных' },
+
+  // ── FACTION NAMES (new factions for display) ──────────────────────────────
+  'faction.india.name':     { en: 'South Asian Bloc',     ru: 'Южноазиатский блок' },
+  'faction.india.desc':     { en: 'Rising superpower with nuclear arsenal and massive population. Strong defense.', ru: 'Растущая сверхдержава с ядерным арсеналом и огромным населением. Сильная оборона.' },
+  'faction.latam.name':     { en: 'Latin League',         ru: 'Латинская лига' },
+  'faction.latam.desc':     { en: 'Resource-rich coalition. Controls critical raw materials, guerrilla doctrine.', ru: 'Богатая ресурсами коалиция. Контролирует сырьё, доктрина партизанской войны.' },
+  'faction.nato.name':      { en: 'NATO Alliance',        ru: 'Альянс НАТО' },
+  'faction.nato.desc':      { en: 'Technological superiority & economic dominance. Best attack, strong economy.', ru: 'Технологическое превосходство и экономическое господство. Лучшая атака, сильная экономика.' },
+  'faction.east.name':      { en: 'Eastern Alliance',     ru: 'Восточный альянс' },
+  'faction.east.desc':      { en: 'Vast Eurasian territory & nuclear arsenal. Best defense, most nukes.', ru: 'Огромная евразийская территория и ядерный арсенал. Лучшая оборона, больше всего ракет.' },
+  'faction.china.name':     { en: 'Pacific Pact',         ru: 'Тихоокеанский пакт' },
+  'faction.china.desc':     { en: "World's largest army & Pacific dominance. Balanced stats, large starts.", ru: 'Крупнейшая армия мира и господство в Тихом океане. Сбалансированные характеристики.' },
+
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -328,24 +426,33 @@ export const TRANSLATIONS = {
  * vars is an object of {placeholder: value} pairs.
  * Example: t('log.turnCompleted', { n: 5 }) → "Turn 5 completed."
  */
-export function useTranslation() {
-  const lang = getStore()(state => state.settings?.language || 'en') || 'en';
+// Shared language ref — written by the store, read by components.
+// This breaks the circular dependency: i18n no longer imports the store.
+export const langRef = { current: 'en' };
+const _langListeners = new Set();
+export function _setLang(lang) {
+  langRef.current = lang || 'en';
+  _langListeners.forEach(fn => fn(langRef.current));
+}
 
+export function useTranslation() {
+  const [lang, setLang] = React.useState(langRef.current);
+  React.useEffect(() => {
+    setLang(langRef.current);
+    _langListeners.add(setLang);
+    return () => _langListeners.delete(setLang);
+  }, []);
   const t = useCallback((key, vars = {}) => {
     try {
-    const entry = TRANSLATIONS[key];
-    if (!entry) return key;
-    let str = entry[lang] || entry['en'] || key;
-
-    // Replace {placeholder} tokens
-    Object.entries(vars).forEach(([k, v]) => {
-      str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
-    });
-
-    return str;
+      const entry = TRANSLATIONS[key];
+      if (!entry) return key;
+      let str = entry[lang] || entry['en'] || key;
+      Object.entries(vars).forEach(([k, v]) => {
+        str = str.replace(new RegExp(`\{${k}\}`, 'g'), v);
+      });
+      return str;
     } catch(e) { return key; }
   }, [lang]);
-
   return t;
 }
 

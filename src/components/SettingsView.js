@@ -30,7 +30,7 @@ const SettingsView = () => {
     const currentLang = settings.language || 'en';
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backBtn} onPress={() => setUiMode('MENU')}>
                     <ChevronLeft color="#fff" size={24} />
@@ -115,7 +115,7 @@ const SettingsView = () => {
                 </View>
 
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 

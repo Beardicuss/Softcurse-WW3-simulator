@@ -113,12 +113,12 @@ const DiplomacyPanel = ({ onClose }) => {
                         <Shuffle color="#fff" size={20} />
                         <View>
                             <Text style={styles.actionTitle}>{t('diplomacy.tradeBtn')}</Text>
-                            <Text style={styles.actionDesc}>Bypass embargoes. Pay a premium for immediate material reserves.</Text>
+                            <Text style={styles.actionDesc}>{t('diplomacy.tradeDesc')}</Text>
                         </View>
                     </View>
                     <View style={styles.costRow}>
-                        <Text style={styles.costText}>COST: $200</Text>
-                        <Text style={styles.gainText}>GAIN: 50 OIL / 100 SUP</Text>
+                        <Text style={styles.costText}>{t('diplomacy.tradeCost')}</Text>
+                        <Text style={styles.gainText}>{t('diplomacy.tradeGain')}</Text>
                     </View>
                     <TouchableOpacity
                         style={[styles.btn, factionData.funds < 200 && styles.btnDisabled]}
@@ -135,12 +135,12 @@ const DiplomacyPanel = ({ onClose }) => {
                         <AlertTriangle color="#e67e22" size={20} />
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.actionTitle, { color: '#e67e22' }]}>{t('diplomacy.sanctionBtn')}</Text>
-                            <Text style={styles.actionDesc}>Launch massive SWIFT/cyber attacks to vaporize enemy funds and cripple morale.</Text>
+                            <Text style={styles.actionDesc}>{t('diplomacy.sanctionDesc')}</Text>
                         </View>
                     </View>
                     <View style={styles.costRow}>
-                        <Text style={styles.costText}>COST: $500</Text>
-                        <Text style={styles.gainText}>TARGET: -15 STAB / -$400</Text>
+                        <Text style={styles.costText}>{t('diplomacy.sanctionCost')}</Text>
+                        <Text style={styles.gainText}>{t('diplomacy.sanctionEffect')}</Text>
                     </View>
 
                     <View style={styles.targetRow}>

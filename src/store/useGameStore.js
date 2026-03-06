@@ -10,11 +10,33 @@ import {
     processStability
 } from '../logic/gameLogic';
 import { runNightmareAI, recordAILoss } from '../logic/aiLogic';
+import { rollWeather, getWeather, COASTAL_REGIONS } from '../logic/gameLogic';
 import { ADJ, FD, REGIONS } from '../data/mapData';
 import { TECH_BY_ID, TECH_NODES, isExcluded, computeTechModifiers } from '../data/techTree';
+import { processWorldEvents } from '../logic/eventSystem';
+import { evaluateMissions, applyMissionReward, CAMPAIGN_MISSIONS } from '../logic/campaignMissions';
+import { _setLang, translate } from '../i18n/i18n';
+import { checkAchievements } from '../logic/achievements';
 
 const SAVE_KEY = '@ww3_save_data';
 const SETTINGS_KEY = '@ww3_settings_data';
+
+// Safe translate helper for use inside store actions
+// Reads language from current state snapshot — never throws
+// tl() uses a getter so it only accesses useGameStore AFTER the store is created
+// This avoids the circular reference crash during module initialisation
+function tl(key, vars = {}) {
+    try {
+        // getStore is assigned below after useGameStore is created
+        const state = typeof getStore === 'function' ? getStore() : null;
+        const lang = state?.settings?.language || 'en';
+        return translate(key, lang, vars);
+    } catch {
+        return translate(key, 'en', vars);
+    }
+}
+let getStore = null; // assigned after store creation
+let _langUnsubscribe = null;
 
 const useGameStore = create((set, get) => ({
     // State
@@ -27,38 +49,270 @@ const useGameStore = create((set, get) => ({
     playerFaction: 'NATO',
     selectedRegionId: null,
     isGameOver: false,
-    gameOverReason: null,  // 'military' | 'collapse' | 'nuclear' | 'victory'
-    act: 1,               // 1 = Cold War, 2 = Global War, 3 = Nuclear Escalation
-    actJustChanged: false, // flips true for one render cycle to trigger banner
+    gameOverReason: null,       // 'military' | 'collapse' | 'nuclear' | 'victory'
+    actPhase: 1,                // 1 = Tension, 2 = Global War, 3 = Escalation/Nuclear
+    actEvents: [],              // log of act transition events shown to player
     hasSave: false,
     nukeUsedThisTurn: false,
     // Nightmare AI persistent memory — one object per AI faction
-    aiMemory: { EAST: {}, CHINA: {} },
+    aiMemory: { EAST: {}, CHINA: {}, INDIA: {}, LATAM: {} },
+
+    // Campaign Mission System
+    missionProgress: {},       // { missionId: { status, objectiveProgress, activatedTurn, completedTurn } }
+    trackedStats: {            // running stats for missions + stats screen
+        // Build
+        builtArmor: 0,
+        builtNaval: 0,
+        builtInfantry: 0,
+        builtAir: 0,
+        // Combat
+        attacksLaunched: 0,
+        attacksWon: 0,
+        attacksLost: 0,
+        unitsKilled: 0,
+        unitsLost: 0,
+        nukesLaunched: 0,
+        orbitalsFired: 0,
+        // Territory
+        totalCaptures: 0,
+        totalLosses: 0,
+        peakRegions: 0,
+        capturesSinceTurn: {},
+        // Spy
+        spyReveals: 0,
+        spySabotages: 0,
+        assassinations: 0,
+        sanctionsUsed: 0,
+        // Economy
+        totalFundsEarned: 0,
+        totalOilSpent: 0,
+        // Survival
+        turnsPlayed: 0,
+        missionsCompleted: 0,
+        peakStability: 100,
+        lowestStability: 100,
+        actReached: 1,
+    },
+    endStats: null,            // snapshot of stats at game end
+
+    // ── DEEPER ECONOMY ───────────────────────────────────────────────────────
+    tradeRoutes: [],           // [{ id, fromFaction, toFaction, resourceType, amount, turnsLeft }]
+    sanctions: {},             // { factionKey: turnsRemaining }
+    blockades: {},             // { regionId: { byFaction, turnsLeft } }
+    tradeRouteIdCounter: 0,
+
+    // ── ACHIEVEMENTS ─────────────────────────────────────────────────────────
+    achievements: {},          // { achievementId: { unlockedAt: turn, seen: false } }
+    leaderboard: [],           // [{ faction, score, turns, reason, date }] last 10 runs
+    newlyCompletedMissions: [], // missions completed this turn, shown in UI
+
+    // Weather System
+    weather: 'clear',         // current global weather id
+    weatherHistory: [],       // last 5 weather ids for trend display
+
+    // Spy / Reconnaissance System
+    // spyCharges live on each faction object (factions[key].spyCharges)
+
+    // Event & Narrative System
+    firedEvents: {},          // { eventId: lastTurnFired }
+    activeEventLog: [],       // last 5 event titles shown in UI
+
+    // Fog of War — set of region IDs visible to the player
+    visibleRegions: new Set(),
+
+    // Game Mode
+    gameMode: 'campaign',     // 'campaign' | 'blitz' | 'survival'
 
     settings: {
         musicVolume: 0.8,
         sfxVolume: 1.0,
         animations: true,
         hardMode: true, // Nightmare mode always active
+        language: 'en',  // 'en' | 'ru'
     },
 
     // Actions
     setUiMode: (mode) => set({ uiMode: mode }),
+    setGameMode: (mode) => set({ gameMode: mode }),
+
+    // ── DEEPER ECONOMY ACTIONS ───────────────────────────────────────────────
+
+    // Establish a trade route: exchange resources between player and another faction
+    proposeTrade: (toFaction, offeredResource, offeredAmount, requestedResource, requestedAmount) => {
+        const state = get();
+        const pFac = { ...state.factions[state.playerFaction] };
+        if ((pFac[offeredResource] || 0) < offeredAmount) return { ok: false, msg: 'Insufficient resources' };
+        const newFactions = { ...state.factions };
+        const tFac = { ...(newFactions[toFaction] || {}) };
+        // Deduct from player, add to target
+        pFac[offeredResource] = (pFac[offeredResource] || 0) - offeredAmount;
+        tFac[offeredResource] = (tFac[offeredResource] || 0) + offeredAmount;
+        // Give player the requested resource
+        pFac[requestedResource] = (pFac[requestedResource] || 0) + requestedAmount;
+        tFac[requestedResource] = Math.max(0, (tFac[requestedResource] || 0) - requestedAmount);
+        newFactions[state.playerFaction] = pFac;
+        newFactions[toFaction] = tFac;
+        const routeId = (state.tradeRouteIdCounter || 0) + 1;
+        const newRoute = {
+            id: routeId,
+            fromFaction: state.playerFaction,
+            toFaction,
+            offeredResource, offeredAmount,
+            requestedResource, requestedAmount,
+            establishedTurn: state.turn,
+            turnsLeft: 5,  // active for 5 turns, recurring
+        };
+        set({
+            factions: newFactions,
+            tradeRoutes: [...(state.tradeRoutes || []), newRoute],
+            tradeRouteIdCounter: routeId,
+            tradeRoutes: newTradeRoutes,
+            sanctions: newSanctions,
+            blockades: newBlockades,
+            trackedStats: { ...state.trackedStats, sanctionsUsed: state.trackedStats?.sanctionsUsed || 0 },
+            gameLog: [`📦 TRADE ROUTE: ${offeredAmount} ${offeredResource} → ${toFaction} for ${requestedAmount} ${requestedResource}.`, ...state.gameLog].slice(0, 10),
+        });
+        return { ok: true };
+    },
+
+    // Cancel a trade route
+    cancelTrade: (routeId) => {
+        const state = get();
+        set({ tradeRoutes: state.tradeRoutes.filter(r => r.id !== routeId) });
+    },
+
+    // Impose economic sanctions on a faction (freezes 30% of their income for N turns)
+    imposeSanctions: (targetFaction, turns = 5) => {
+        const state = get();
+        const cost = 400;
+        const pFac = state.factions[state.playerFaction];
+        if ((pFac?.funds || 0) < cost) return { ok: false, msg: 'Insufficient funds (need 400)' };
+        const newFactions = { ...state.factions };
+        newFactions[state.playerFaction] = { ...pFac, funds: pFac.funds - cost };
+        const newSanctions = { ...state.sanctions, [targetFaction]: turns };
+        set({
+            factions: newFactions,
+            sanctions: newSanctions,
+            trackedStats: { ...state.trackedStats, sanctionsUsed: (state.trackedStats?.sanctionsUsed || 0) + 1 },
+            gameLog: [`🚫 SANCTIONS: Economic war declared on ${targetFaction} for ${turns} turns. -400 funds.`, ...state.gameLog].slice(0, 10),
+        });
+        return { ok: true };
+    },
+
+    // Naval blockade of a region (cuts its oil/supply income)
+    imposeBlockade: (regionId) => {
+        const state = get();
+        const cost = 300;
+        const pFac = state.factions[state.playerFaction];
+        const region = state.regions[regionId];
+        if (!region) return { ok: false, msg: 'Invalid region' };
+        if (region.faction === state.playerFaction) return { ok: false, msg: 'Cannot blockade own region' };
+        if ((pFac?.funds || 0) < cost) return { ok: false, msg: 'Insufficient funds (need 300)' };
+        const newFactions = { ...state.factions };
+        newFactions[state.playerFaction] = { ...pFac, funds: pFac.funds - cost };
+        const newBlockades = { ...state.blockades, [regionId]: { byFaction: state.playerFaction, turnsLeft: 4 } };
+        set({
+            factions: newFactions,
+            blockades: newBlockades,
+            gameLog: [`⚓ BLOCKADE: Naval blockade imposed on ${regionId.toUpperCase()} for 4 turns. -300 funds.`, ...state.gameLog].slice(0, 10),
+        });
+        return { ok: true };
+    },
+
+    // ── ACHIEVEMENTS ─────────────────────────────────────────────────────────
+
+    unlockAchievement: (id) => {
+        const state = get();
+        if (state.achievements?.[id]) return; // already unlocked
+        const newAch = { ...state.achievements, [id]: { unlockedAt: state.turn, seen: false } };
+        set({ achievements: newAch });
+    },
+
+    markAchievementSeen: (id) => {
+        const state = get();
+        const ach = state.achievements?.[id];
+        if (!ach) return;
+        set({ achievements: { ...state.achievements, [id]: { ...ach, seen: true } } });
+    },
+
+    // Submit score to leaderboard on game over
+    submitScore: (reason) => {
+        const state = get();
+        const ownedCount = Object.values(state.regions).filter(r => r.faction === state.playerFaction).length;
+        const totalRegions = Object.keys(state.regions).length;
+        const score = Math.floor(
+            (ownedCount / totalRegions) * 5000 +
+            state.turn * 10 +
+            (state.trackedStats?.attacksWon || 0) * 15 +
+            (state.trackedStats?.totalCaptures || 0) * 20 +
+            (reason === 'victory' ? 10000 : 0)
+        );
+        const entry = {
+            faction: state.playerFaction,
+            score,
+            turns: state.turn,
+            regions: ownedCount,
+            reason,
+            date: new Date().toLocaleDateString(),
+            gameMode: state.gameMode,
+        };
+        const lb = [...(state.leaderboard || []), entry]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 15);
+        set({ leaderboard: lb });
+        get().saveGame();
+    },
 
     startGame: async (faction) => {
         const { rs, fs, date } = initGame();
+        const mode = get().gameMode || 'campaign';
+
+        // Apply game mode modifications to starting state
+        if (mode === 'survival') {
+            // Survival: player keeps only ONE starting region, strips the rest to neutral
+            const starts = FD[faction]?.starts || {};
+            const startIds = Object.keys(starts);
+            const keepId = startIds[0]; // keep first region only
+            startIds.slice(1).forEach(rid => {
+                if (rs[rid]) {
+                    rs[rid] = { ...rs[rid], faction: 'NEUTRAL', infantry: 6, armor: 1, air: 0 };
+                }
+            });
+            // Give the survival player a small bonus to compensate
+            fs[faction].funds    = 600;
+            fs[faction].supplies = 400;
+        } else if (mode === 'blitz') {
+            // Blitz: all factions start with more troops, faster escalation
+            Object.keys(rs).forEach(rid => {
+                if (rs[rid].faction !== 'NEUTRAL') {
+                    rs[rid].infantry = Math.floor(rs[rid].infantry * 1.5);
+                }
+            });
+        }
+
+        // Compute initial fog of war
+        const initVisible = new Set();
+        Object.entries(rs).forEach(([id, r]) => {
+            if (r.faction === faction) {
+                initVisible.add(id);
+                (ADJ[id] || []).forEach(adjId => initVisible.add(adjId));
+            }
+        });
+
         set({
             regions: rs,
             factions: fs,
             date: date,
             playerFaction: faction,
             turn: 1,
-            gameLog: [`Campaign started as ${FD[faction].name} `],
+            gameLog: [tl('log.campaignStart', { faction: FD[faction].name, mode: mode.toUpperCase() })],
             uiMode: 'GAME',
             isGameOver: false,
             gameOverReason: null,
-            act: 1,
-            actJustChanged: false,
+            actPhase: 1,
+            actEvents: [],
+            firedEvents: {},
+            activeEventLog: [],
             selectedRegionId: null
         });
 
@@ -78,45 +332,19 @@ const useGameStore = create((set, get) => ({
                 gameLog: state.gameLog,
                 isGameOver: state.isGameOver,
                 gameOverReason: state.gameOverReason,
-                act: state.act,
+                actPhase: state.actPhase,
+                actEvents: state.actEvents,
                 aiMemory: state.aiMemory,
+                firedEvents: state.firedEvents,
+                gameMode: state.gameMode,
+                missionProgress: state.missionProgress,
+                trackedStats: state.trackedStats,
+                visibleRegions: Array.from(state.visibleRegions || []),
             };
             await AsyncStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
             set({ hasSave: true });
         } catch (e) {
             console.error("Failed to save game", e);
-        }
-    },
-
-    loadGame: async () => {
-        try {
-            const data = await AsyncStorage.getItem(SAVE_KEY);
-            if (data) {
-                const parsed = JSON.parse(data);
-                set({
-                    ...parsed,
-                    uiMode: 'GAME',
-                    selectedRegionId: null
-                });
-            }
-        } catch (e) {
-            console.error("Failed to load game", e);
-        }
-    },
-
-    checkHasSave: async () => {
-        try {
-            const data = await AsyncStorage.getItem(SAVE_KEY);
-            const settingsData = await AsyncStorage.getItem(SETTINGS_KEY);
-
-            const updates = { hasSave: !!data };
-            if (settingsData) {
-                updates.settings = JSON.parse(settingsData);
-            }
-
-            set(updates);
-        } catch (e) {
-            console.log("No save exists or error checking");
         }
     },
 
@@ -174,7 +402,7 @@ const useGameStore = create((set, get) => ({
             FD[to.faction]?.def ?? 0.85,
             from.stability ?? 100,
             to.stability ?? 100,
-            atkMods, defMods
+            atkMods, defMods, state.weather
         );
 
         const newRegions = { ...state.regions };
@@ -228,7 +456,15 @@ const useGameStore = create((set, get) => ({
         set({
             regions: newRegions,
             factions: newFactions,
-            gameLog: [`${win ? 'SUCCESS' : 'FAILURE'}: Operation in ${toId.toUpperCase()} `, ...state.gameLog].slice(0, 10)
+            gameLog: [win ? tl('log.attackSuccess2', { region: toId.toUpperCase() }) : tl('log.attackFailure2', { region: toId.toUpperCase() }), ...state.gameLog].slice(0, 10),
+            trackedStats: { ...state.trackedStats,
+                attacksLaunched: (state.trackedStats?.attacksLaunched || 0) + 1,
+                attacksWon:  (state.trackedStats?.attacksWon  || 0) + (win ? 1 : 0),
+                attacksLost: (state.trackedStats?.attacksLost || 0) + (win ? 0 : 1),
+                totalCaptures: (state.trackedStats?.totalCaptures || 0) + (win ? 1 : 0),
+                unitsKilled: (state.trackedStats?.unitsKilled || 0) + Math.floor(dDamage),
+                unitsLost:   (state.trackedStats?.unitsLost   || 0) + Math.floor(aDamage),
+            }
         });
     },
 
@@ -238,6 +474,12 @@ const useGameStore = create((set, get) => ({
         const faction = state.factions[state.playerFaction];
 
         if (!region || region.faction !== state.playerFaction) return;
+
+        // Naval units require coastal regions
+        if (['destroyer','submarine','carrier'].includes(unitType) && !COASTAL_REGIONS.has(regionId)) {
+            set({ gameLog: [tl('log.navalRequired'), ...state.gameLog].slice(0, 12) });
+            return;
+        }
 
         // Apply tech cost modifier (Ghost Protocol: –25% unit costs)
         const mods = computeTechModifiers(faction?.unlockedTech || []);
@@ -249,9 +491,14 @@ const useGameStore = create((set, get) => ({
         } else if (unitType === 'armor') {
             costFunds = Math.ceil(150 * costMult); costSupplies = Math.ceil(50  * costMult); costIndustry = 10;
         } else if (unitType === 'air') {
-            // Also apply airCostMult (Strike Drones)
             const airMult = costMult * (mods.airCostMult || 1);
             costFunds = Math.ceil(300 * airMult); costSupplies = Math.ceil(100 * airMult); costIndustry = 25;
+        } else if (unitType === 'destroyer') {
+            costFunds = Math.ceil(200 * costMult); costSupplies = Math.ceil(60  * costMult); costIndustry = 15;
+        } else if (unitType === 'submarine') {
+            costFunds = Math.ceil(250 * costMult); costSupplies = Math.ceil(80  * costMult); costIndustry = 20;
+        } else if (unitType === 'carrier') {
+            costFunds = Math.ceil(500 * costMult); costSupplies = Math.ceil(150 * costMult); costIndustry = 30;
         }
 
         if (faction.funds >= costFunds && faction.supplies >= costSupplies) {
@@ -265,13 +512,13 @@ const useGameStore = create((set, get) => ({
                 set({
                     factions: newFactions,
                     regions: newRegions,
-                    gameLog: [`PRODUCTION: ${unitType.toUpperCase()} deployed in ${regionId.toUpperCase()} `, ...state.gameLog].slice(0, 10)
+                    gameLog: [tl('log.production2', { unit: unitType.toUpperCase(), region: regionId.toUpperCase() }), ...state.gameLog].slice(0, 10)
                 });
             } else {
-                set({ gameLog: [`ERROR: Insufficient Industry in ${regionId.toUpperCase()} `, ...state.gameLog].slice(0, 10) });
+                set({ gameLog: [tl('log.insufficientInd', { region: regionId.toUpperCase() }), ...state.gameLog].slice(0, 10) });
             }
         } else {
-            set({ gameLog: [`ERROR: Insufficient Funds or Supplies`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.insufficientRes'), ...state.gameLog].slice(0, 10) });
         }
     },
 
@@ -312,6 +559,20 @@ const useGameStore = create((set, get) => ({
             if (state.turn % 3 === 0) {
                 fac.techPoints = (fac.techPoints || 0) + 1;
             }
+
+            // Spy charges replenish every 5 turns (max 3)
+            if (state.turn % 5 === 0) {
+                fac.spyCharges = Math.min(3, (fac.spyCharges || 0) + 1);
+            }
+
+            // Naval upkeep (oil cost per naval unit)
+            let navalOilCost = 0;
+            owned.forEach(rid => {
+                navalOilCost += (newRegions[rid].destroyer  || 0) * 2;
+                navalOilCost += (newRegions[rid].submarine  || 0) * 3;
+                navalOilCost += (newRegions[rid].carrier    || 0) * 4;
+            });
+            fac.oil = Math.max(0, (fac.oil || 0) - navalOilCost);
 
             // Tech: Hacker Cells — steal % from each enemy
             if (mods.incomeStealPct > 0) {
@@ -392,7 +653,7 @@ const useGameStore = create((set, get) => ({
         });
 
         if (attritionOccurred) {
-            newLog.unshift(`WARNING: Isolated forces are suffering attrition!`);
+            newLog.unshift(tl('log.attrition'));
         }
 
         // 2.6 Internal Stability & Crisis Engine
@@ -400,7 +661,61 @@ const useGameStore = create((set, get) => ({
         Object.assign(newFactions, stabilityPhase.updatedFactions);
         Object.assign(newRegions, stabilityPhase.updatedRegions);
 
-        // 2.7 Dead Hand — if player has NUKE_3 and stability < 20%, auto-retaliate vs biggest attacker
+        // 2.65 Roll weather
+        const newWeather = rollWeather(state.weather, state.turn);
+        const newWeatherHistory = [newWeather, ...(state.weatherHistory || [])].slice(0, 5);
+        if (newWeather !== state.weather) {
+            const wData = getWeather(newWeather);
+            newLog.unshift(`${wData.emoji} WEATHER: ${wData.label} — ATK ×${wData.atkMod}, DEF ×${wData.defMod}`);
+        }
+
+        // 2.7 World Events
+        const eventResult = processWorldEvents(
+            {
+                factions: newFactions,
+                regions: newRegions,
+                playerFaction: state.playerFaction,
+                turn: state.turn,
+                actPhase: newActPhase,
+            },
+            state.firedEvents || {}
+        );
+        Object.assign(newFactions, eventResult.updatedFactions);
+        Object.assign(newRegions,  eventResult.updatedRegions);
+        eventResult.eventLog.forEach(msg => newLog.unshift(msg));
+        const newFiredEvents = eventResult.updatedFiredEvents;
+        const newActiveEventLog = [...eventResult.eventLog, ...(state.activeEventLog || [])].slice(0, 4);
+
+        // 2.8 Mission Evaluation
+        const missionResult = evaluateMissions(
+            { regions: newRegions, factions: newFactions, playerFaction: state.playerFaction,
+              turn: state.turn, actPhase: newActPhase, settings: state.settings },
+            state.missionProgress || {},
+            state.trackedStats || {}
+        );
+        let missionFactions = newFactions;
+        const missionLogs = [];
+        missionResult.rewards.forEach(({ reward }) => {
+            missionFactions = applyMissionReward(missionFactions, state.playerFaction, reward);
+        });
+        missionResult.completedNow.forEach(m => {
+            const lang = state.settings?.language || 'en';
+            const title = lang === 'ru' ? m.titleRu : m.title;
+            missionLogs.push(`🎯 MISSION COMPLETE: ${title}`);
+        });
+        missionLogs.forEach(msg => newLog.unshift(msg));
+        newFactions = missionFactions;
+
+        // 2.9 Fog of War — recompute visible regions for player
+        const newVisible = new Set();
+        Object.entries(newRegions).forEach(([id, r]) => {
+            if (r.faction === state.playerFaction) {
+                newVisible.add(id);
+                (ADJ[id] || []).forEach(adjId => newVisible.add(adjId));
+            }
+        });
+
+        // 2.9 Dead Hand — if player has NUKE_3 and stability < 20%, auto-retaliate vs biggest attacker
         const playerMods = allTechMods[state.playerFaction] || {};
         if (playerMods.deadHand && (newFactions[state.playerFaction]?.stability || 100) < 20) {
             const playerNukes = newFactions[state.playerFaction]?.nukes || 0;
@@ -442,7 +757,7 @@ const useGameStore = create((set, get) => ({
         }
 
         // 3. NIGHTMARE AI PHASE
-        const aiFactions = ['EAST', 'CHINA'].filter(f => f !== state.playerFaction);
+        const aiFactions = ['EAST', 'CHINA', 'INDIA', 'LATAM'].filter(f => f !== state.playerFaction);
         const newAIMemory = { ...state.aiMemory };
 
         aiFactions.forEach(aiKey => {
@@ -468,7 +783,7 @@ const useGameStore = create((set, get) => ({
                     FD[aiKey].atk, defStat,
                     from.stability ?? 100,
                     to.stability   ?? 100,
-                    aiAtkMods, aiDefMods
+                    aiAtkMods, aiDefMods, newWeather
                 );
 
                 if (win) {
@@ -478,7 +793,7 @@ const useGameStore = create((set, get) => ({
                     );
                     newRegions[m.to]   = { ...to, faction: aiKey, ...remaining, stability: 50 };
                     newRegions[m.from] = { ...from, infantry: 1, armor: 0, air: 0 };
-                    newLog.unshift(`STRATEGIC LOSS: ${m.to.toUpperCase()} captured by ${FD[aiKey].short}`);
+                    newLog.unshift(tl('log.strategicLoss', { region: m.to.toUpperCase(), faction: FD[aiKey].short }));
                 } else {
                     // Record loss in AI memory — it will avoid this target next time
                     updatedMemory.recentLosses = updatedMemory.recentLosses || {};
@@ -551,105 +866,173 @@ const useGameStore = create((set, get) => ({
             newAIMemory[aiKey] = updatedMemory;
         });
 
-        // ── Phase 7: Act Progression ─────────────────────────────────────────
-        const totalRegions  = Object.keys(newRegions).length;
-        const playerRegions = Object.values(newRegions).filter(r => r.faction === state.playerFaction).length;
-        const playerStab    = newFactions[state.playerFaction]?.stability ?? 100;
-        const playerNukesLeft = newFactions[state.playerFaction]?.nukes ?? 0;
+        // ── PHASE 7: 3-ACT PROGRESSION ─────────────────────────────────────
+        const totalRegions   = Object.keys(newRegions).length;
+        const pRegions       = Object.values(newRegions).filter(r => r.faction === state.playerFaction);
+        const pRegionsCount  = pRegions.length;
+        const pStability     = newFactions[state.playerFaction]?.stability ?? 100;
+        const pFunds         = newFactions[state.playerFaction]?.funds ?? 0;
+        const pOil           = newFactions[state.playerFaction]?.oil   ?? 0;
+        const newActEvents   = [...(state.actEvents || [])];
+        let   newActPhase    = state.actPhase || 1;
 
-        // Nuke count across ALL factions (world is going nuclear)
-        const totalNukesUsed = Object.values(newRegions).filter(r => r.bombed).length;
+        // Count total nukes used across all factions (proxy: turns with bombed regions)
+        const totalBombed = Object.values(newRegions).filter(r => r.bombed).length;
 
-        // Act 2 triggers: turn 8+ AND player controls >25% OR any faction has <50% stability
-        const anyFactionUnstable = Object.values(newFactions).some(f => (f.stability || 100) < 50);
-        let newAct = state.act;
-        let actJustChanged = false;
-
-        if (state.act === 1 && (state.turn >= 8 || anyFactionUnstable || playerRegions / totalRegions > 0.35)) {
-            newAct = 2;
-            actJustChanged = true;
-            newLog.unshift('⚔ ACT II: GLOBAL WAR — Full mobilisation declared worldwide.');
+        // ── Act 1 → Act 2: Global War trigger ─────────────────────────────
+        // Triggers when: player has lost ≥25% of starting regions OR turn ≥15
+        const startingRegionCount = Object.keys(FD[state.playerFaction]?.starts || {}).length || 4;
+        const regionsLost = startingRegionCount - pRegionsCount;
+        if (newActPhase === 1) {
+            const act2TurnTrigger = state.gameMode === 'blitz' ? 8 : 15;
+            const act2Trigger =
+                state.turn >= act2TurnTrigger ||
+                regionsLost >= Math.ceil(startingRegionCount * 0.25) ||
+                pStability < 65;
+            if (act2Trigger) {
+                newActPhase = 2;
+                newActEvents.push('ACT II — GLOBAL WAR: The conflict has escalated beyond containment. All factions mobilize fully.');
+                newLog.unshift(tl('log.actII'));
+                // Act 2 effect: AI factions get a one-time combat power boost
+                ['EAST', 'CHINA', 'INDIA', 'LATAM'].filter(f => f !== state.playerFaction).forEach(fk => {
+                    const owned = Object.keys(newRegions).filter(id => newRegions[id].faction === fk);
+                    owned.forEach(rid => {
+                        newRegions[rid].infantry = (newRegions[rid].infantry || 0) + 3;
+                    });
+                    newFactions[fk].funds = (newFactions[fk].funds || 0) + 500;
+                });
+            }
         }
 
-        // Act 3 triggers: any nuke used (bombed regions exist) OR turn 20+ with high tension
-        if (state.act < 3 && (totalNukesUsed > 0 || state.turn >= 20)) {
-            newAct = 3;
-            actJustChanged = state.act !== 3;
-            if (actJustChanged) newLog.unshift('☢ ACT III: ESCALATION — Nuclear doctrine is now active.');
+        // ── Act 2 → Act 3: Escalation/Nuclear trigger ────────────────────
+        // Triggers when: nuclear weapons have been used, or turn ≥30, or player <30% regions
+        if (newActPhase === 2) {
+            const act3Trigger =
+                state.turn >= 30 ||
+                totalBombed >= 3 ||
+                pRegionsCount <= Math.floor(totalRegions * 0.10);
+            if (act3Trigger) {
+                newActPhase = 3;
+                newActEvents.push('ACT III — ESCALATION: The nuclear threshold has been crossed. Civilisation teeters on the edge.');
+                newLog.unshift(tl('log.actIII'));
+                // Act 3 effect: global stability collapse, all factions lose stability
+                Object.keys(newFactions).forEach(fk => {
+                    newFactions[fk].stability = Math.max(10, (newFactions[fk].stability || 100) - 20);
+                });
+            }
         }
 
-        // Act modifiers — escalating difficulty
-        if (newAct >= 2) {
-            // Global war: regions slowly destabilise faster
-            Object.keys(newRegions).forEach(rid => {
-                const r = newRegions[rid];
-                if (r.faction !== state.playerFaction && r.stability > 30) {
-                    newRegions[rid] = { ...r, stability: Math.max(30, r.stability - 1) };
-                }
-            });
-        }
-        if (newAct === 3) {
-            // Nuclear age: all factions get slight income boost (arms race)
-            Object.keys(newFactions).forEach(fk => {
-                newFactions[fk] = { ...newFactions[fk], funds: (newFactions[fk].funds || 0) + 50 };
-            });
-        }
-
-        // ── Win Condition ─────────────────────────────────────────────────────
-        // Victory: control 60% of regions (campaign mode) or 40% (blitz)
-        const winThreshold = state.gameMode === 'blitz' ? 0.40 : 0.60;
-        const playerControlPct = playerRegions / totalRegions;
-
-        // Check if any AI faction is eliminated (all regions gone)
-        const eastGone  = !Object.values(newRegions).some(r => r.faction === 'EAST');
-        const chinaGone = !Object.values(newRegions).some(r => r.faction === 'CHINA');
-        const allEnemiesGone = ['EAST', 'CHINA']
-            .filter(f => f !== state.playerFaction)
-            .every(f => !Object.values(newRegions).some(r => r.faction === f));
-
-        const playerWins = playerControlPct >= winThreshold || allEnemiesGone;
-
-        // ── Defeat Conditions ─────────────────────────────────────────────────
-        const militaryDefeat = playerRegions === 0;
-        const collapseDefeat = playerStab <= 0;
-        // Nuclear annihilation: player got nuked AND has no regions left
-        const nuclearDefeat  = militaryDefeat && totalNukesUsed > 3;
-
-        if (militaryDefeat || collapseDefeat || playerWins) {
-            let reason = 'military';
-            if (playerWins)      reason = 'victory';
-            else if (nuclearDefeat)  reason = 'nuclear';
-            else if (collapseDefeat) reason = 'collapse';
-
+        // ── VICTORY CHECK ─────────────────────────────────────────────────
+        // Player wins by controlling >60% of all regions
+        const victoryThreshold = state.gameMode === 'blitz' ? Math.ceil(totalRegions * 0.40) : Math.ceil(totalRegions * 0.60);
+        if (pRegionsCount >= victoryThreshold) {
             set({
-                regions: newRegions,
-                factions: newFactions,
-                act: newAct,
+                regions: newRegions, factions: newFactions,
                 isGameOver: true,
-                gameOverReason: reason,
+                gameOverReason: 'victory',
+                endStats: { ...state.trackedStats, finalTurn: state.turn, finalRegions: pRegionsCount, finalFaction: state.playerFaction, finalActPhase: newActPhase },
+                actPhase: newActPhase,
+                actEvents: newActEvents,
                 gameLog: [
-                    reason === 'victory'
-                        ? `🏆 VICTORY: ${FD[state.playerFaction].name} achieves world domination in ${state.turn} turns!`
-                        : 'CRITICAL FAILURE: Command Authority lost.',
+                    `VICTORY: World dominance achieved in ${state.turn} turns. ${FD[state.playerFaction].name} rules the globe.`,
                     ...newLog
                 ].slice(0, 10),
             });
+            get().submitScore('victory');
             get().saveGame();
-        } else {
-            set({
-                regions: newRegions,
-                factions: newFactions,
-                gameLog: [`Turn ${state.turn} completed.`, ...newLog].slice(0, 10),
-                selectedRegionId: null,
-                turn: state.turn + 1,
-                date: newDate.getTime(),
-                nukeUsedThisTurn: false,
-                aiMemory: newAIMemory,
-                act: newAct,
-                actJustChanged,
-            });
-            get().saveGame();
+            return;
         }
+
+        // ── DEFEAT: MILITARY COLLAPSE ─────────────────────────────────────
+        // All player regions lost
+        if (pRegionsCount === 0) {
+            set({
+                regions: newRegions, factions: newFactions,
+                isGameOver: true,
+                gameOverReason: 'military',
+                endStats: { ...state.trackedStats, finalTurn: state.turn, finalRegions: pRegionsCount, finalFaction: state.playerFaction, finalActPhase: newActPhase },
+                actPhase: newActPhase,
+                actEvents: newActEvents,
+                gameLog: [
+                    'MILITARY DEFEAT: All territory lost. Command authority dissolved.',
+                    ...newLog
+                ].slice(0, 10),
+            });
+            get().submitScore('military');
+            get().saveGame();
+            return;
+        }
+
+        // ── DEFEAT: SYSTEMATIC COLLAPSE ───────────────────────────────────
+        // Stability hits zero (internal revolution/surrender)
+        if (pStability <= 0) {
+            set({
+                regions: newRegions, factions: newFactions,
+                isGameOver: true,
+                gameOverReason: 'collapse',
+                endStats: { ...state.trackedStats, finalTurn: state.turn, finalRegions: pRegionsCount, finalFaction: state.playerFaction, finalActPhase: newActPhase },
+                actPhase: newActPhase,
+                actEvents: newActEvents,
+                gameLog: [
+                    'SYSTEMATIC COLLAPSE: Internal stability lost. The government falls from within.',
+                    ...newLog
+                ].slice(0, 10),
+            });
+            get().submitScore('collapse');
+            get().saveGame();
+            return;
+        }
+
+        // ── DEFEAT: NUCLEAR ANNIHILATION ──────────────────────────────────
+        // Act 3 + player economy destroyed + nuked out
+        if (newActPhase === 3 && pStability < 15 && pFunds <= 0 && pOil <= 0) {
+            set({
+                regions: newRegions, factions: newFactions,
+                isGameOver: true,
+                gameOverReason: 'nuclear',
+                endStats: { ...state.trackedStats, finalTurn: state.turn, finalRegions: pRegionsCount, finalFaction: state.playerFaction, finalActPhase: newActPhase },
+                actPhase: newActPhase,
+                actEvents: newActEvents,
+                gameLog: [
+                    '☢ NUCLEAR ANNIHILATION: The warheads fell. Nothing remains.',
+                    ...newLog
+                ].slice(0, 10),
+            });
+            get().submitScore('nuclear');
+            get().saveGame();
+            return;
+        }
+
+        // ── NORMAL TURN END ───────────────────────────────────────────────
+        set({
+            regions: newRegions,
+            factions: newFactions,
+            gameLog: [`Turn ${state.turn} completed.`, ...newLog].slice(0, 12),
+            selectedRegionId: null,
+            turn: state.turn + 1,
+            date: newDate.getTime(),
+            nukeUsedThisTurn: false,
+            aiMemory: newAIMemory,
+            actPhase: newActPhase,
+            actEvents: newActEvents,
+            firedEvents: newFiredEvents,
+            activeEventLog: newActiveEventLog,
+            visibleRegions: newVisible,
+            weather: newWeather,
+            weatherHistory: newWeatherHistory,
+            missionProgress: missionResult.newProgress,
+            newlyCompletedMissions: missionResult.completedNow,
+            trackedStats: {
+                ...state.trackedStats,
+                turnsPlayed: (state.trackedStats?.turnsPlayed || 0) + 1,
+                actReached: Math.max(state.trackedStats?.actReached || 1, newActPhase),
+                peakRegions: Math.max(state.trackedStats?.peakRegions || 0, pRegionsCount),
+                peakStability: Math.max(state.trackedStats?.peakStability || 0, newFactions[state.playerFaction]?.stability || 0),
+                lowestStability: Math.min(state.trackedStats?.lowestStability ?? 100, newFactions[state.playerFaction]?.stability ?? 100),
+                missionsCompleted: Object.values(missionResult.newProgress).filter(p => p.status === 'complete').length,
+            },
+        });
+        get().saveGame();
         } catch (e) {
             console.error('endTurn crashed:', e);
             set({ gameLog: [`ERROR: Turn processing failed — ${e.message}`, ...get().gameLog].slice(0, 10) });
@@ -674,24 +1057,24 @@ const useGameStore = create((set, get) => ({
 
         // Stockpile check
         if ((fac.nukes || 0) < 1) {
-            set({ gameLog: [`NUCLEAR: No warheads in stockpile.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.nuclearNoWarheads'), ...state.gameLog].slice(0, 10) });
             return;
         }
 
         // One nuke per turn
         if (state.nukeUsedThisTurn) {
-            set({ gameLog: [`NUCLEAR: Launch protocol already executed this turn.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.nuclearAlreadyUsed'), ...state.gameLog].slice(0, 10) });
             return;
         }
 
         const target = state.regions[targetRegionId];
         if (!target) return;
         if (target.faction === state.playerFaction) {
-            set({ gameLog: [`NUCLEAR: Cannot target own territory.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.nuclearOwnTerritory'), ...state.gameLog].slice(0, 10) });
             return;
         }
         if (target.faction === 'NEUTRAL') {
-            set({ gameLog: [`NUCLEAR: Strategic doctrine prohibits striking neutral regions.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.nuclearNeutral'), ...state.gameLog].slice(0, 10) });
             return;
         }
 
@@ -755,6 +1138,7 @@ const useGameStore = create((set, get) => ({
             regions: newRegions,
             factions: newFactions,
             nukeUsedThisTurn: true,
+            trackedStats: { ...get().trackedStats, nukesLaunched: (get().trackedStats?.nukesLaunched || 0) + 1 },
             gameLog: [
                 `☢ NUCLEAR STRIKE: ${targetRegionId.toUpperCase()} obliterated.${captureMsg}${mirvMsg}`,
                 ...state.gameLog
@@ -773,13 +1157,13 @@ const useGameStore = create((set, get) => ({
 
         // Already unlocked
         if (unlocked.includes(nodeId)) {
-            set({ gameLog: [`RESEARCH: ${node.name} already active.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.researchActive', { name: node.name }), ...state.gameLog].slice(0, 10) });
             return;
         }
 
         // Check points
         if ((fac.techPoints || 0) < node.cost) {
-            set({ gameLog: [`RESEARCH: Insufficient tech points (need ${node.cost}).`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.researchNoPoints', { n: node.cost }), ...state.gameLog].slice(0, 10) });
             return;
         }
 
@@ -787,14 +1171,14 @@ const useGameStore = create((set, get) => ({
         for (const req of node.requires || []) {
             if (!unlocked.includes(req)) {
                 const reqNode = TECH_BY_ID[req];
-                set({ gameLog: [`RESEARCH: Requires ${reqNode?.name || req} first.`, ...state.gameLog].slice(0, 10) });
+                set({ gameLog: [tl('log.researchRequires', { name: reqNode?.name || req }), ...state.gameLog].slice(0, 10) });
                 return;
             }
         }
 
         // Check mutual exclusion
         if (isExcluded(nodeId, unlocked)) {
-            set({ gameLog: [`RESEARCH: Blocked by mutual exclusion with existing tech.`, ...state.gameLog].slice(0, 10) });
+            set({ gameLog: [tl('log.researchBlocked'), ...state.gameLog].slice(0, 10) });
             return;
         }
 
@@ -809,11 +1193,85 @@ const useGameStore = create((set, get) => ({
 
         set({
             factions: newFactions,
-            gameLog: [`RESEARCH COMPLETE: ${node.name} — ${node.desc}`, ...state.gameLog].slice(0, 10),
+            gameLog: [tl('log.researchComplete', { name: node.name }), ...state.gameLog].slice(0, 10),
+        });
+    },
+
+    // ── Spy Actions ───────────────────────────────────────────────────────────
+    // Uses spyCharges from player faction
+    // Actions: reveal (fog of war reveal), sabotage, assassinate (stability hit)
+    spyReveal: (targetRegionId) => {
+        const state = get();
+        const fac = state.factions[state.playerFaction];
+        if ((fac?.spyCharges || 0) < 1) {
+            set({ gameLog: [tl('log.spyNoCharges'), ...state.gameLog].slice(0, 12) });
+            return;
+        }
+        const newFactions = { ...state.factions };
+        newFactions[state.playerFaction] = { ...fac, spyCharges: fac.spyCharges - 1 };
+        // Reveal the target region and its neighbors for 1 turn
+        const newVisible = new Set(state.visibleRegions);
+        newVisible.add(targetRegionId);
+        (ADJ[targetRegionId] || []).forEach(id => newVisible.add(id));
+        set({
+            factions: newFactions,
+            visibleRegions: newVisible,
+            trackedStats: { ...state.trackedStats, spyReveals: (state.trackedStats?.spyReveals || 0) + 1 },
+            gameLog: [tl('log.spyReveal', { region: targetRegionId.toUpperCase() }), ...state.gameLog].slice(0, 12),
+        });
+    },
+
+    spySabotage: (targetRegionId) => {
+        const state = get();
+        const fac = state.factions[state.playerFaction];
+        if ((fac?.spyCharges || 0) < 1) {
+            set({ gameLog: [tl('log.spyNoCharges'), ...state.gameLog].slice(0, 12) });
+            return;
+        }
+        const target = state.regions[targetRegionId];
+        if (!target || target.faction === state.playerFaction) return;
+
+        const newFactions = { ...state.factions };
+        newFactions[state.playerFaction] = { ...fac, spyCharges: fac.spyCharges - 1 };
+        const newRegions = { ...state.regions };
+        // Sabotage: destroy industry and hit stability
+        newRegions[targetRegionId] = {
+            ...target,
+            industry:  Math.max(0, (target.industry  || 0) - 8),
+            stability: Math.max(0, (target.stability || 100) - 20),
+        };
+        set({
+            factions: newFactions,
+            regions: newRegions,
+            trackedStats: { ...state.trackedStats, spySabotages: (state.trackedStats?.spySabotages || 0) + 1 },
+            gameLog: [tl('log.spySabotage', { region: targetRegionId.toUpperCase() }), ...state.gameLog].slice(0, 12),
+        });
+    },
+
+    spyAssassinate: (targetFactionKey) => {
+        const state = get();
+        const fac = state.factions[state.playerFaction];
+        if ((fac?.spyCharges || 0) < 2) {
+            set({ gameLog: [`SPY: Assassination requires 2 operative charges.`, ...state.gameLog].slice(0, 12) });
+            return;
+        }
+        const newFactions = { ...state.factions };
+        newFactions[state.playerFaction] = { ...fac, spyCharges: fac.spyCharges - 2 };
+        // Hit enemy faction stability hard
+        newFactions[targetFactionKey] = {
+            ...newFactions[targetFactionKey],
+            stability: Math.max(0, (newFactions[targetFactionKey].stability || 100) - 30),
+            funds: Math.max(0, (newFactions[targetFactionKey].funds || 0) - 200),
+        };
+        set({
+            factions: newFactions,
+            trackedStats: { ...state.trackedStats, assassinations: (state.trackedStats?.assassinations || 0) + 1 },
+            gameLog: [tl('log.spyAssassinate', { faction: targetFactionKey }), ...state.gameLog].slice(0, 12),
         });
     },
 
     orbitalStrike: (targetRegionId) => {
+        useGameStore.getState && (() => { const s = get(); set({ trackedStats: { ...s.trackedStats, orbitalsFired: (s.trackedStats?.orbitalsFired||0)+1 } }); })();
         const state = get();
         const fac = state.factions[state.playerFaction];
         const mods = computeTechModifiers(fac?.unlockedTech || []);
@@ -872,8 +1330,18 @@ const useGameStore = create((set, get) => ({
                     nukeUsedThisTurn: false,
                     hasSave: true,
                     uiMode: 'GAME',
-                    aiMemory: parsedState.aiMemory || { EAST: {}, CHINA: {} },
-                    gameLog: ['Game loaded successfully!', ...(parsedState.gameLog || [])].slice(0, 10)
+                    aiMemory: parsedState.aiMemory || { EAST: {}, CHINA: {}, INDIA: {}, LATAM: {} },
+                    visibleRegions: new Set(parsedState.visibleRegions || []),
+                    weather: parsedState.weather || 'clear',
+                    weatherHistory: parsedState.weatherHistory || [],
+                    firedEvents: parsedState.firedEvents || {},
+                    missionProgress: parsedState.missionProgress || {},
+                    trackedStats: parsedState.trackedStats || { builtInfantry:0, builtArmor:0, builtAir:0, builtNaval:0, attacksLaunched:0, attacksWon:0, attacksLost:0, unitsKilled:0, unitsLost:0, nukesLaunched:0, orbitalsFired:0, totalCaptures:0, totalLosses:0, peakRegions:0, capturesSinceTurn:{}, spyReveals:0, spySabotages:0, assassinations:0, sanctionsUsed:0, totalFundsEarned:0, totalOilSpent:0, turnsPlayed:0, missionsCompleted:0, peakStability:100, lowestStability:100, actReached:1 },
+                    activeEventLog: parsedState.activeEventLog || [],
+                    actPhase: parsedState.actPhase || 1,
+                    actEvents: parsedState.actEvents || [],
+                    gameMode: parsedState.gameMode || 'campaign',
+                    gameLog: [tl('log.campaignStart', { faction: '', mode: 'LOAD' }).replace(' — LOAD mode',''), ...(parsedState.gameLog || [])].slice(0, 10)
                 });
                 return true;
             } else {
@@ -902,6 +1370,14 @@ const useGameStore = create((set, get) => ({
     setMusicVolume: (volume) => set(state => ({ settings: { ...state.settings, musicVolume: volume } })),
     setSfxVolume: (volume) => set(state => ({ settings: { ...state.settings, sfxVolume: volume } })),
 }));
+
+// Wire up the lazy getter now that the store exists
+getStore = () => useGameStore.getState();
+// Keep i18n lang in sync — no store import needed in i18n.js (breaks cycle)
+_setLang(useGameStore.getState()?.settings?.language || 'en');
+useGameStore.subscribe(state => {
+    _setLang(state?.settings?.language || 'en');
+});
 
 export default useGameStore;
 

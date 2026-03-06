@@ -1,224 +1,203 @@
 import React, { useState } from 'react';
 import {
-    StyleSheet,
-    View,
-    Text,
-    TouchableOpacity,
-    SafeAreaView,
-    ScrollView,
-    Animated
+    StyleSheet, View, Text, TouchableOpacity,
+    ScrollView, Animated
 } from 'react-native';
-import { ChevronRight, ShieldAlert, Crosshair, Map, Shield } from 'lucide-react-native';
+import { ChevronRight, ShieldAlert, Crosshair, Shield } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
 import { useTranslation } from '../i18n/i18n';
 import { FD } from '../data/mapData';
+
+const ALL_FACTIONS = ['NATO', 'EAST', 'CHINA', 'INDIA', 'LATAM'];
+
+const FACTION_DESCS = {
+    NATO:  'Technological superiority & economic dominance. Best attack, strong economy.',
+    EAST:  'Vast Eurasian territory & nuclear arsenal. Best defense, most nukes.',
+    CHINA: "World's largest army & Pacific dominance. Balanced stats, large starts.",
+    INDIA: "Rising superpower with nuclear arsenal and massive population. Strong defense.",
+    LATAM: "Resource-rich coalition. Lower nukes but high income and territorial spread.",
+    INDIA: 'Rising superpower. Strong population base, growing nuclear deterrent.',
+    LATAM: 'Resource-rich coalition. Controls critical raw materials, guerrilla doctrine.',
+};
 
 const FactionSelectView = ({ onStart }) => {
     const t = useTranslation();
     const setUiMode = useGameStore(s => s.setUiMode);
     const [selected, setSelected] = useState(null);
+    const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+    React.useEffect(() => {
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    }, []);
 
     return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>{t('faction.selectAlignment')}</Text>
-                    <Text style={styles.subtitle}>{t('faction.subtitle')}</Text>
-                </View>
+        <View style={styles.container}>
+            <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+                <ScrollView contentContainerStyle={styles.content}>
+                    <View style={styles.header}>
+                        <Text style={styles.title}>{t('faction.selectAlignment')}</Text>
+                        <Text style={styles.subtitle}>{t('faction.subtitle')}</Text>
+                    </View>
 
-                <View style={styles.grid}>
-                    {['NATO', 'EAST', 'CHINA'].map(fk => {
-                        const isSelected = selected === fk;
-                        return (
-                            <TouchableOpacity
-                                key={fk}
-                                activeOpacity={0.8}
-                                style={[
-                                    styles.card,
-                                    { borderColor: isSelected ? FD[fk].color : '#222' },
-                                    isSelected && { backgroundColor: `${FD[fk].color}15` }
-                                ]}
-                                onPress={() => setSelected(fk)}
-                            >
-                                <View style={styles.cardHeader}>
-                                    <Text style={styles.flag}>{FD[fk].flag}</Text>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={[styles.factionName, { color: FD[fk].color }]} numberOfLines={1} adjustsFontSizeToFit>{t(`faction.${fk.toLowerCase()}.name`)}</Text>
-                                        <Text style={styles.factionShort}>{fk} {t('faction.command')}</Text>
+                    {/* 2-column grid */}
+                    <View style={styles.grid}>
+                        {ALL_FACTIONS.map(fk => {
+                            const fd = FD[fk];
+                            if (!fd) return null;
+                            const isSelected = selected === fk;
+                            return (
+                                <TouchableOpacity
+                                    key={fk}
+                                    activeOpacity={0.8}
+                                    style={[
+                                        styles.card,
+                                        { borderColor: isSelected ? fd.color : '#1a2a3a' },
+                                        isSelected && { backgroundColor: `${fd.color}18` },
+                                        fk === 'LATAM' && ALL_FACTIONS.length % 2 !== 0 && { marginLeft: 'auto', marginRight: 'auto' },
+                                    ]}
+                                    onPress={() => setSelected(fk)}
+                                >
+                                    {/* Flag + Name */}
+                                    <View style={styles.cardHeader}>
+                                        <Text style={styles.flag}>{fd.flag}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.factionName, { color: fd.color }]} numberOfLines={1} adjustsFontSizeToFit>
+                                                {fd.name}
+                                            </Text>
+                                            <Text style={styles.factionShort}>{fd.short} {t('faction.command')}</Text>
+                                        </View>
+                                        {isSelected && (
+                                            <View style={[styles.selectedBadge, { backgroundColor: fd.color }]}>
+                                                <Text style={styles.selectedBadgeText}>✓</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                </View>
 
-                                <Text style={styles.desc}>{t(`faction.${fk.toLowerCase()}.desc`)}</Text>
+                                    {/* Description */}
+                                    <Text style={styles.desc} numberOfLines={2}>
+                                        {t(`faction.${fk.toLowerCase()}.desc`) !== `faction.${fk.toLowerCase()}.desc`
+                                            ? t(`faction.${fk.toLowerCase()}.desc`)
+                                            : (fd.desc || FACTION_DESCS[fk])}
+                                    </Text>
 
-                                <View style={styles.statsContainer}>
-                                    <View style={styles.statBox}>
-                                        <Crosshair color="#fff" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={styles.statLine}>{t('stat.atk')}: {FD[fk].atk}x</Text>
+                                    {/* Stats */}
+                                    <View style={styles.statsContainer}>
+                                        <View style={styles.statBox}>
+                                            <Text style={styles.statIcon}>⚔</Text>
+                                            <Text style={styles.statLine}>{t('stat.atk')} {fd.atk}x</Text>
+                                        </View>
+                                        <View style={styles.statBox}>
+                                            <Text style={styles.statIcon}>🛡</Text>
+                                            <Text style={styles.statLine}>{t('stat.def')} {fd.def}x</Text>
+                                        </View>
+                                        <View style={styles.statBox}>
+                                            <Text style={[styles.statLine, { color: '#e74c3c' }]}>☢ {fd.nukes}</Text>
+                                        </View>
+                                        <View style={styles.statBox}>
+                                            <Text style={[styles.statLine, { color: '#f0a030' }]}>💰 {fd.income}/t</Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.statBox}>
-                                        <Shield color="#fff" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={styles.statLine}>{t('stat.def')}: {FD[fk].def}x</Text>
-                                    </View>
-                                    <View style={styles.statBox}>
-                                        <ShieldAlert color="#e74c3c" size={10} style={{ marginRight: 2 }} />
-                                        <Text style={[styles.statLine, { color: '#e74c3c' }]}>{t('stat.nukes')}: {FD[fk].nukes}</Text>
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
 
-                <View style={styles.bottomBar}>
-                    <TouchableOpacity
-                        style={styles.backBtn}
-                        onPress={() => setUiMode('MENU')}
-                    >
-                        <Text style={styles.backText}>{t('faction.back')}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.bottomBar}>
+                        <TouchableOpacity style={styles.backBtn} onPress={() => setUiMode('MENU')}>
+                            <Text style={styles.backText}>← {t('faction.back')}</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.startBtn, !selected && { opacity: 0.5 }]}
-                        disabled={!selected}
-                        onPress={() => {
-                            if (selected) onStart(selected);
-                        }}
-                    >
-                        <Text style={styles.startText}>{t('faction.initialize')}</Text>
-                        <ChevronRight color="#fff" size={20} />
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                        <TouchableOpacity
+                            style={[
+                                styles.startBtn,
+                                !selected && { opacity: 0.4 },
+                                selected && { backgroundColor: FD[selected]?.color || '#cc0000' }
+                            ]}
+                            disabled={!selected}
+                            onPress={() => { if (selected) onStart(selected); }}
+                        >
+                            <Text style={styles.startText}>{t('faction.initialize')}</Text>
+                            <ChevronRight color="#fff" size={20} />
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </Animated.View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#050a12',
-    },
-    content: {
-        padding: 20,
-        paddingBottom: 40,
-        flexGrow: 1,
-    },
-    header: {
-        alignItems: 'center',
-        marginVertical: 30,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: '#fff',
-        letterSpacing: 4,
-    },
-    subtitle: {
-        fontSize: 12,
-        color: '#888',
-        marginTop: 10,
-        letterSpacing: 1,
-    },
+    container: { flex: 1, backgroundColor: '#050a12' },
+    content: { padding: 16, paddingBottom: 40 },
+    header: { alignItems: 'center', marginVertical: 24 },
+    title: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: 4 },
+    subtitle: { fontSize: 11, color: '#4a6070', marginTop: 8, letterSpacing: 1 },
     grid: {
         flexDirection: 'row',
-        gap: 15,
-        flex: 1,
+        flexWrap: 'wrap',
+        gap: 12,
         justifyContent: 'center',
     },
     card: {
-        flex: 1,
-        backgroundColor: '#111',
-        borderWidth: 2,
-        borderRadius: 12,
-        padding: 20,
+        width: '47%',
+        backgroundColor: '#08111c',
+        borderWidth: 1.5,
+        padding: 14,
+        borderRadius: 4,
     },
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 15,
+        marginBottom: 10,
+        gap: 8,
     },
-    flag: {
-        fontSize: 48,
-        marginRight: 10,
+    flag: { fontSize: 32 },
+    factionName: { fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+    factionShort: { fontSize: 8, color: '#3a5060', letterSpacing: 2, marginTop: 2 },
+    selectedBadge: {
+        width: 22, height: 22, borderRadius: 11,
+        justifyContent: 'center', alignItems: 'center',
     },
-    factionName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        letterSpacing: 1,
-    },
-    factionShort: {
-        fontSize: 10,
-        color: '#888',
-        letterSpacing: 2,
-        marginTop: 4,
-    },
-    desc: {
-        fontSize: 14,
-        color: '#aaa',
-        lineHeight: 22,
-        marginBottom: 20,
-    },
+    selectedBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    desc: { fontSize: 10, color: '#5a7080', lineHeight: 15, marginBottom: 10 },
     statsContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 4,
-        backgroundColor: '#000',
-        padding: 10,
-        borderRadius: 8,
+        gap: 6,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        padding: 8,
+        borderRadius: 4,
         borderWidth: 1,
-        borderColor: '#222',
+        borderColor: '#0a1520',
     },
-    statBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    statLine: {
-        color: '#ddd',
-        fontSize: 10,
-        fontWeight: 'bold',
-        letterSpacing: 0.5,
-    },
+    statBox: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    statIcon: { fontSize: 9 },
+    statLine: { color: '#8090a0', fontSize: 9, fontWeight: '700' },
     bottomBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginTop: 20,
+        marginTop: 24,
+        gap: 12,
     },
     backBtn: {
-        paddingVertical: 15,
-        paddingHorizontal: 30,
+        paddingVertical: 14,
+        paddingHorizontal: 20,
         borderWidth: 1,
-        borderColor: '#333',
-        borderRadius: 8,
+        borderColor: '#1a2a3a',
         justifyContent: 'center',
     },
-    backText: {
-        color: '#888',
-        fontSize: 12,
-        fontWeight: 'bold',
-        letterSpacing: 2,
-    },
+    backText: { color: '#4a6070', fontSize: 11, fontWeight: '900', letterSpacing: 2 },
     startBtn: {
         flex: 1,
-        marginLeft: 20,
         backgroundColor: '#cc0000',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 8,
-        shadowColor: '#cc0000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
+        paddingVertical: 14,
+        gap: 8,
         elevation: 5,
     },
-    startText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '900',
-        letterSpacing: 2,
-        marginRight: 10,
-    }
+    startText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
 });
 
 export default FactionSelectView;

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Play, Settings, BookOpen, Clock, ShieldAlert } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
+import CreditsScreen from './CreditsScreen';
 import { useTranslation } from '../i18n/i18n';
 
 const { width } = Dimensions.get('window');
@@ -17,6 +18,7 @@ const { width } = Dimensions.get('window');
 const MainMenuView = () => {
     const t = useTranslation();
     const setUiMode = useGameStore(s => s.setUiMode);
+    const [showCredits, setShowCredits] = React.useState(false);
     const setGameMode = useGameStore(s => s.setGameMode);
     const [showModeSelect, setShowModeSelect] = React.useState(false);
     const gameMode = useGameStore(s => s.gameMode);
@@ -39,7 +41,7 @@ const MainMenuView = () => {
     }, []);
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             {/* Ambient Background Grid Overlay */}
             <View style={styles.gridOverlay}>
                 {Array.from({ length: 20 }).map((_, i) => (
@@ -89,7 +91,7 @@ const MainMenuView = () => {
                     </Animated.View>
 
                     <Animated.View style={{ opacity: fadeAnim4, transform: [{ translateX: fadeAnim4.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}>
-                        <TouchableOpacity style={styles.menuButton} activeOpacity={0.8}>
+                        <TouchableOpacity style={styles.menuButton} activeOpacity={0.8} onPress={() => setShowCredits(true)}>
                             <BookOpen color="#3a9eff" size={18} opacity={0.8} />
                             <Text style={styles.menuButtonText}>{t('menu.creditsAbout')}</Text>
                         </TouchableOpacity>
@@ -129,7 +131,8 @@ const MainMenuView = () => {
                     </TouchableOpacity>
                 </View>
             )}
-        </SafeAreaView>
+        {showCredits && <CreditsScreen onClose={() => setShowCredits(false)} />}
+        </View>
     );
 };
 
