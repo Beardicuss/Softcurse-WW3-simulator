@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
     StyleSheet, View, Text, TouchableOpacity,
     ScrollView, Dimensions
@@ -14,13 +14,15 @@ const ResearchPanel = ({ onClose }) => {
     const fadeAnim  = React.useRef(new Animated.Value(0)).current;
     React.useEffect(() => {
         Animated.parallel([
-            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
-            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
         ]).start();
     }, []);
     const t = useTranslation();
-    const { factions, playerFaction, researchTech } = useGameStore();
-    const fac = factions[playerFaction];
+    const playerFaction = useGameStore(s => s.playerFaction);
+    const factionData4  = useGameStore(s => s.factions[s.playerFaction]);
+    const researchTech  = useGameStore(s => s.researchTech);
+    const fac = factionData4;
     const unlocked = fac?.unlockedTech || [];
     const techPoints = fac?.techPoints || 0;
 
@@ -376,4 +378,4 @@ const styles = StyleSheet.create({
     activeChipName: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 });
 
-export default ResearchPanel;
+export default memo(ResearchPanel);

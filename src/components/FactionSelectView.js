@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
     StyleSheet, View, Text, TouchableOpacity,
     ScrollView, Animated
@@ -200,4 +200,4 @@ const styles = StyleSheet.create({
     startText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
 });
 
-export default FactionSelectView;
+export default memo(FactionSelectView);

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Animated } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Animated, InteractionManager } from 'react-native';
 import {
   Zap,
   Globe,
@@ -24,6 +24,7 @@ import { View as RNView } from 'react-native';
 const ReAnimatedView = createAnimatedComponent(RNView);
 
 import useGameStore from './src/store/useGameStore';
+import { useShallow } from 'zustand/shallow';
 import { FD, getTerrain } from './src/data/mapData';
 import { computeTechModifiers } from './src/data/techTree';
 import GameMap from './src/components/GameMap';
@@ -47,21 +48,52 @@ import LeaderboardScreen from './src/components/LeaderboardScreen';
 import TradePanel from './src/components/TradePanel';
 import TutorialOverlay from './src/components/TutorialOverlay';
 import Tooltip from './src/components/Tooltip';
-import AnimatedNumber from './src/components/AnimatedNumber';
 
 const { width, height } = Dimensions.get('window');
 
+// ── Stable fallback constants (outside component — never recreated) ───────────
+const EMPTY_FACTION = { funds: 0, oil: 0, supplies: 0, stability: 100, nukes: 0, techPoints: 0, unlockedTech: [] };
+const EMPTY_ACHIEVEMENTS = {};
+
+const IS_LOW_END = width * height < 1280 * 720; // Redmi Note 8 = 1520×720 → borderline
+// For Redmi Note 8 specifically: 360 DPI, 6.3" = ~720 logical pixels wide
+
 const App = () => {
   const {
-    uiMode, playerFaction, factions, regions,
+    uiMode, playerFaction,
     turn, date, gameLog, selectedRegionId, startGame, checkHasSave,
     nukeUsedThisTurn, launchNuke, orbitalStrike, blackoutRegion, aiMemory,
     updateSettings, undoLastAction, undoLabel, settings,
     isGameOver, gameOverReason, actPhase, actEvents, activeEventLog,
     weather, spyReveal, spySabotage, spyAssassinate,
     missionProgress, newlyCompletedMissions,
-  } = useGameStore();
-  const undoLabelLive = useGameStore(s => s.undoLabel);
+  } = useGameStore(useShallow(s => ({
+    uiMode: s.uiMode, playerFaction: s.playerFaction,
+    turn: s.turn, date: s.date, gameLog: s.gameLog, selectedRegionId: s.selectedRegionId,
+    startGame: s.startGame, checkHasSave: s.checkHasSave,
+    nukeUsedThisTurn: s.nukeUsedThisTurn, launchNuke: s.launchNuke,
+    orbitalStrike: s.orbitalStrike, blackoutRegion: s.blackoutRegion, aiMemory: s.aiMemory,
+    updateSettings: s.updateSettings, undoLastAction: s.undoLastAction,
+    undoLabel: s.undoLabel, settings: s.settings,
+    isGameOver: s.isGameOver, gameOverReason: s.gameOverReason,
+    actPhase: s.actPhase, actEvents: s.actEvents, activeEventLog: s.activeEventLog,
+    weather: s.weather, spyReveal: s.spyReveal, spySabotage: s.spySabotage,
+    spyAssassinate: s.spyAssassinate,
+    missionProgress: s.missionProgress, newlyCompletedMissions: s.newlyCompletedMissions,
+  })));
+  // Granular selectors — only subscribe to what App.js actually needs
+  // selectedRegion: single region object (re-renders only when that region changes)
+  const selectedRegion = useGameStore(s => s.selectedRegionId ? s.regions[s.selectedRegionId] : null);
+  // playerRegionCount: only for game-over screen
+  const playerRegionCount = useGameStore(s => {
+    let n = 0;
+    const keys = Object.keys(s.regions);
+    for (let i = 0; i < keys.length; i++) if (s.regions[keys[i]].faction === s.playerFaction) n++;
+    return n;
+  });
+  const currentFS     = useGameStore(s => s.factions[s.playerFaction] || EMPTY_FACTION);
+  const gameLogLen    = useGameStore(s => (s.gameLog || []).length);
+  const achievements  = useGameStore(s => s.achievements || EMPTY_ACHIEVEMENTS);
 
   // ── Screen shake (Reanimated — UI thread) ────────────────────────────────
   const shakeX = useSharedValue(0);
@@ -137,11 +169,10 @@ const App = () => {
     setShowTutorial(false);
     updateSettings({ tutorialSeen: true });
   };
-  // Fire visual effects when attacks/nukes happen — watch gameLog length
-  const gameLogLen = useGameStore(s => (s.gameLog || []).length);
+  // gameLogLen moved to selector block — ref kept here
   const gameLogRef = React.useRef(0);
   const regionsRef = React.useRef({});
-  React.useEffect(() => { regionsRef.current = regions || {}; }, [regions]);
+  // Keep regionsRef in sync via getState — no subscription needed
 
   React.useEffect(() => {
     if (gameLogLen <= gameLogRef.current) { gameLogRef.current = gameLogLen; return; }
@@ -149,6 +180,7 @@ const App = () => {
     const log = useGameStore.getState().gameLog || [];
     const latest = log[0] || '';
     if (!selectedRegionId) return;
+    regionsRef.current = useGameStore.getState().regions || {};
     if (latest.includes('☢') || latest.toLowerCase().includes('nuke') || latest.toLowerCase().includes('nuclear')) {
       fireEffect('nuke', selectedRegionId);
       audio.play('nuke');
@@ -183,7 +215,7 @@ const App = () => {
   React.useEffect(() => { checkHasSave(); }, [checkHasSave]);
 
   // Watch for new achievements to toast
-  const achievements = useGameStore(s => s.achievements || {});
+  // achievements selector moved to selector block
   const prevAchCount = React.useRef(0);
   React.useEffect(() => {
     const newCount = Object.keys(achievements).length;
@@ -263,7 +295,7 @@ const App = () => {
             <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 2, marginBottom: 8 }}>{t('gameover.summary')}</Text>
             <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>{t('gameover.turnsSurvived')} <Text style={{ color: '#fff', fontWeight: '700' }}>{turn}</Text></Text>
             <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>{t('gameover.actReached')} <Text style={{ color: accentColor, fontWeight: '700' }}>{t('gameover.actLabel', { n: actPhase })}</Text></Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12 }}>{t('gameover.regionsHeld')} <Text style={{ color: '#fff', fontWeight: '700' }}>{Object.values(regions).filter(r => r.faction === playerFaction).length}</Text></Text>
+            <Text style={{ color: '#c8d8e8', fontSize: 12 }}>{t('gameover.regionsHeld')} <Text style={{ color: '#fff', fontWeight: '700' }}>{playerRegionCount}</Text></Text>
           </View>
           <View style={{ width: '100%', marginBottom: 32 }}>
             {(actEvents || []).slice(-3).map((ev, i) => (
@@ -305,8 +337,6 @@ const App = () => {
   }
 
   const currentFD = FD[playerFaction];
-  const currentFS = factions[playerFaction] || { funds: 0, oil: 0, supplies: 0, stability: 100, nukes: 0, techPoints: 0, unlockedTech: [] };
-  const selectedRegion = selectedRegionId ? regions[selectedRegionId] : null;
   const mapActive = !showEconomy && !showDiplomacy && !showResearch;
 
   // Tech mods for player — drives what special actions are available
@@ -341,26 +371,26 @@ const App = () => {
             <View style={styles.resourcesContainer}>
               <Tooltip text={t('tooltip.oil')} style={styles.resourceItem}>
                 <Droplet size={13} color="#ffd700" />
-                <AnimatedNumber value={currentFS.oil} style={styles.resourceText} suffix={" " + t('hud.oil')} />
+                <Text style={styles.resourceText}>{currentFS.oil} {t('hud.oil')}</Text>
               </Tooltip>
               <Tooltip text={t('tooltip.steel')} style={styles.resourceItem}>
                 <Layers size={13} color="#bdc3c7" />
-                <AnimatedNumber value={currentFS.supplies} style={styles.resourceText} suffix={" " + t('hud.steel')} />
+                <Text style={styles.resourceText}>{currentFS.supplies} {t('hud.steel')}</Text>
               </Tooltip>
               <Tooltip text={t('tooltip.funds')} style={styles.resourceItem}>
                 <Banknote size={13} color="#2ecc71" />
-                <AnimatedNumber value={currentFS.funds} style={styles.resourceText} prefix="$" suffix={" " + t('hud.money')} />
+                <Text style={styles.resourceText}>${currentFS.funds} {t('hud.money')}</Text>
               </Tooltip>
               <Tooltip text={t('tooltip.stability')} style={styles.resourceItem}>
                 <Zap size={13} color="#3498db" />
-                <AnimatedNumber value={currentFS?.stability || 0} style={styles.resourceText} suffix={"% " + t('hud.energy')} increaseColor="#2ecc71" decreaseColor="#e74c3c" />
+                <Text style={[styles.resourceText, { color: (currentFS?.stability || 0) < 40 ? '#e74c3c' : (currentFS?.stability || 0) < 70 ? '#f39c12' : '#2ecc71' }]}>{currentFS?.stability || 0}% {t('hud.energy')}</Text>
               </Tooltip>
               <TouchableOpacity
                 style={[styles.resourceItem, styles.techPointsItem, showResearch && styles.techPointsActive]}
                 onPress={() => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }}
               >
                 <Text style={styles.techPointsIcon}>⚗</Text>
-                <Text style={[styles.techPointsText, (currentFS?.techPoints || 0) > 0 && styles.techPointsAvailable]}>
+                <Text style={currentFS?.techPoints > 0 ? styles.techPointsAvailable : styles.techPointsText}>
                   {currentFS?.techPoints || 0} {t('hud.tp')}
                 </Text>
               </TouchableOpacity>
@@ -452,8 +482,8 @@ const App = () => {
                 <View style={styles.intelBody}>
                   <View style={styles.intelFactionRow}>
                     <View style={[styles.intelFactionDot, { backgroundColor: FD[selectedRegion.faction]?.color || '#2a3d50' }]} />
-                    <Text style={[styles.intelFactionName, { color: FD[selectedRegion.faction]?.color || '#aaa' }]}>
-                      {FD[selectedRegion.faction]?.short || 'NEU'}
+                    <Text style={[styles.intelFactionName, { color: FD[selectedRegion?.faction]?.color || '#aaa' }]}>
+                      {FD[selectedRegion?.faction]?.short || 'NEU'}
                     </Text>
                     {(() => { const ter = getTerrain(selectedRegionId); return <Text style={{ color: '#4a7a9b', fontSize: 8, fontWeight: '700', letterSpacing: 1, marginLeft: 6 }}>{ter.emoji} {ter.label.toUpperCase()}</Text>; })()}
                     {selectedRegion.isolated && <Text style={styles.intelWarning}> ⚠ISO</Text>}
@@ -477,9 +507,9 @@ const App = () => {
                   ))}
                   <View style={styles.intelDivider} />
                   <View style={styles.intelUnitsRow}>
-                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.infantry || 0} style={styles.intelUnitText} prefix={t('unit.infantry') + ' '} /></View>
-                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.armor || 0} style={styles.intelUnitText} prefix={t('unit.armor') + ' '} /></View>
-                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.air || 0} style={styles.intelUnitText} prefix={t('unit.air') + ' '} /></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.infantry')} {selectedRegion?.infantry || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.armor')} {selectedRegion?.armor || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.air')} {selectedRegion?.air || 0}</Text></View>
                   </View>
                 </View>
               ) : (
@@ -630,6 +660,8 @@ const App = () => {
                   if (endTurnLoading) return;
                   setEndTurnLoading(true);
                   audio.play('endTurn');
+                  // Let UI animations finish before heavy computation
+                  await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
                   await useGameStore.getState().endTurn();
                   setEndTurnLoading(false);
                }, active: false, danger: true },
@@ -798,9 +830,9 @@ const App = () => {
 
 
         {/* ── UNDO LAST ACTION ─────────────────────────────────────── */}
-        {undoLabelLive && uiMode === 'GAME' && (
+        {undoLabel && uiMode === 'GAME' && (
           <View style={styles.undoBar}>
-            <Text style={styles.undoLabel}>↩ {t('undo.label')} ({t('undo.' + undoLabelLive)})</Text>
+            <Text style={styles.undoLabel}>↩ {t('undo.label')} ({t('undo.' + undoLabel)})</Text>
             <TouchableOpacity style={styles.undoBtn} onPress={() => { undoLastAction(); }}>
               <Text style={styles.undoBtnText}>{t('undo.action')}</Text>
             </TouchableOpacity>

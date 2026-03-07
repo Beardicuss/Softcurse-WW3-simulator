@@ -18,13 +18,40 @@ const MAP_SCALE = SCREEN_WIDTH / MAP_BASE_WIDTH;
 
 const GameMap = () => {
     // Selective subscriptions — only re-render when these specific fields change
-    const regions         = useGameStore(s => s.regions);
+    // Split regions subscription to minimize redraws:
+    // factionMap: faction per region (changes on capture) — drives color rendering
+    // regions: full object needed for unit counts + adjacency in isTarget check
+    const regions = useGameStore(s => s.regions);
     const playerFaction   = useGameStore(s => s.playerFaction);
     const selectRegion    = useGameStore(s => s.selectRegion);
     const selectedRegionId = useGameStore(s => s.selectedRegionId);
-    const visibleRegions  = useGameStore(s => s.visibleRegions);
+
+    // ── Low-end device detection (Redmi Note 8 = ~2GB RAM, Snapdragon 665) ───
+    const isLowEnd = React.useMemo(() => {
+        const { width: W2, height: H2 } = require('react-native').Dimensions.get('window');
+        // Heuristic: low DPI or small screen = low-end
+        return W2 * H2 < 1280 * 720;
+    }, []);
+
+    const visibleRegionsArr = useGameStore(s => s.visibleRegions);
+    // Convert array → Set once per change; Set gives O(1) .has() in the render loop
+    const visibleRegions = useMemo(
+        () => new Set(visibleRegionsArr || []),
+        [visibleRegionsArr]
+    );
 
     // Memoized faction fill colors — recomputed only when regions change
+    // Faction fingerprint: string that only changes when a capture occurs (not unit movement)
+    const factionFingerprint = useMemo(() => {
+        if (!regions) return '';
+        const keys = Object.keys(regions);
+        let fp = '';
+        for (let i = 0; i < keys.length; i++) {
+            fp += regions[keys[i]].faction[0]; // first char only — fast
+        }
+        return fp;
+    }, [regions]);
+
     const regionFactionColors = useMemo(() => {
         const out = {};
         Object.entries(regions || {}).forEach(([id, r]) => {
@@ -101,6 +128,18 @@ const GameMap = () => {
     const composed = Gesture.Simultaneous(pinchGesture, panGesture, tapGesture);
 
     // Adjacency lines — memoised
+    // Pre-compute attackable targets as a Set — O(1) lookup in render loop
+    const attackableTargets = useMemo(() => {
+        if (!selectedRegionId || !regions) return new Set();
+        const from = regions[selectedRegionId];
+        if (!from || from.faction !== playerFaction) return new Set();
+        const targets = new Set();
+        (ADJ[selectedRegionId] || []).forEach(n => {
+            if (regions[n]?.faction !== playerFaction) targets.add(n);
+        });
+        return targets;
+    }, [selectedRegionId, regions, playerFaction]);
+
     const connections = useMemo(() => {
         const lines = [], seen = new Set();
         REGIONS.forEach(r => {
@@ -259,12 +298,7 @@ const GameMap = () => {
                             const gameRegion = regions[entry.id];
                             const liveFaction = gameRegion?.faction;
                             const isSel = selectedRegionId === entry.id;
-                            const isTarget = !isSel && selectedRegionId && (() => {
-                                const from = regions[selectedRegionId];
-                                if (!from || from.faction !== playerFaction) return false;
-                                if (liveFaction === playerFaction) return false;
-                                return (ADJ[selectedRegionId] || []).includes(entry.id);
-                            })();
+                            const isTarget = !isSel && attackableTargets.has(entry.id);
 
                             if (!isVisible) {
                                 return (
@@ -344,7 +378,7 @@ const GameMap = () => {
                             }
                         }
 
-                        // FOG OF WAR: dark hex + question mark indicator
+                        // FOG OF WAR: dark hex (+ ? indicator on high-end only)
                         if (!isVisible) {
                             const qr = r.r * 1.8;
                             return (
@@ -354,18 +388,16 @@ const GameMap = () => {
                                     <Path path={g.hexOut} color="rgba(15,28,45,0.7)"
                                         style="stroke" strokeWidth={0.6} />
                                     <Path path={g.hexIn} color="rgba(6,10,18,0.80)" />
-                                    {/* ? indicator — arc (top of ?) */}
-                                    <Circle cx={g.cx} cy={g.cy - qr * 0.15}
-                                        r={qr * 0.55}
-                                        color="rgba(30,55,80,0.0)" />
-                                    <Circle cx={g.cx} cy={g.cy - qr * 0.15}
-                                        r={qr * 0.55}
-                                        color="rgba(40,80,110,0.55)"
-                                        style="stroke" strokeWidth={qr * 0.18} />
-                                    {/* ? dot (bottom of ?) */}
-                                    <Circle cx={g.cx} cy={g.cy + qr * 0.55}
-                                        r={qr * 0.14}
-                                        color="rgba(40,80,110,0.55)" />
+                                    {/* ? indicator — only on high-end devices */}
+                                    {!isLowEnd && <>
+                                        <Circle cx={g.cx} cy={g.cy - qr * 0.15}
+                                            r={qr * 0.55}
+                                            color="rgba(40,80,110,0.55)"
+                                            style="stroke" strokeWidth={qr * 0.18} />
+                                        <Circle cx={g.cx} cy={g.cy + qr * 0.55}
+                                            r={qr * 0.14}
+                                            color="rgba(40,80,110,0.55)" />
+                                    </>}
                                 </Group>
                             );
                         }
@@ -388,7 +420,7 @@ const GameMap = () => {
                                 {r.strategic && (
                                     <Circle cx={g.cx} cy={g.cy} r={g.rStrategic} color="rgba(255,215,0,0.35)" style="stroke" strokeWidth={0.8} />
                                 )}
-                                {rs && (
+                                {rs && !isLowEnd && (
                                     <Group>
                                         {rs.armor > 0 && <Path path={up.tank} color="#bdc3c7" style="fill" />}
                                         {rs.air   > 0 && <Path path={up.jet}  color="#3498db" style="fill" />}

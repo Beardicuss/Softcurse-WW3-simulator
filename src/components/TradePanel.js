@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, Dimensions
@@ -8,6 +8,7 @@ import { useTranslation } from '../i18n/i18n';
 import { FD } from '../data/mapData';
 
 const { width } = Dimensions.get('window');
+const IS_LOW_END = width < 768;
 const slideAnim = null; // panel slide handled by parent
 
 const ALL_FACTIONS = ['NATO', 'EAST', 'CHINA', 'INDIA', 'LATAM'];
@@ -485,4 +486,4 @@ const styles = StyleSheet.create({
     hintText: { color: '#3a5060', fontSize: 11, textAlign: 'center' },
 });
 
-export default TradePanel;
+export default memo(TradePanel);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { Shield, Rocket, Plane, Zap, Activity, HardHat, Anchor } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
@@ -7,21 +7,27 @@ import { getTerrain } from '../data/mapData';
 import { useTranslation } from '../i18n/i18n';
 
 const { height } = Dimensions.get('window');
+const { width: PW } = Dimensions.get('window');
+const IS_LOW_END = PW < 768;
 
 const EconomyPanel = ({ onClose }) => {
     const slideAnim = React.useRef(new Animated.Value(30)).current;
     const fadeAnim  = React.useRef(new Animated.Value(0)).current;
     React.useEffect(() => {
         Animated.parallel([
-            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
-            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
         ]).start();
     }, []);
     const t = useTranslation();
-    const { factions, playerFaction, regions, selectedRegionId, buildUnit } = useGameStore();
+    const playerFaction   = useGameStore(s => s.playerFaction);
+    const factionData2    = useGameStore(s => s.factions[s.playerFaction]);
+    const selectedRegionId = useGameStore(s => s.selectedRegionId);
+    const selectedRegion2  = useGameStore(s => s.selectedRegionId ? s.regions[s.selectedRegionId] : null);
+    const buildUnit        = useGameStore(s => s.buildUnit);
 
-    const factionData = factions[playerFaction];
-    const selectedRegion = selectedRegionId ? regions[selectedRegionId] : null;
+    const factionData = factionData2;
+    const selectedRegion = selectedRegion2;
 
     if (!factionData) return null;
 
@@ -264,4 +270,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default EconomyPanel;
+export default memo(EconomyPanel);

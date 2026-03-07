@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import {
     View, Text, Animated, TouchableOpacity,
     StyleSheet, Dimensions
@@ -256,4 +256,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default ActCutscene;
+export default memo(ActCutscene);

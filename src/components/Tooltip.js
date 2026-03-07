@@ -5,7 +5,7 @@
  * Automatically positions above/below based on available screen space.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { memo, useRef, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
     Dimensions, Modal
@@ -106,4 +106,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default Tooltip;
+export default memo(Tooltip);

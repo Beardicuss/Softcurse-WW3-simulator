@@ -1,37 +1,36 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
-import { Canvas, Rect, LinearGradient, vec } from '@shopify/react-native-skia';
+import React, { memo } from 'react';
+import { View, StyleSheet } from 'react-native';
 
-export default function GameFrame() {
-  const [size, setSize] = useState({ w: 0, h: 0 });
-  const { w: W, h: H } = size;
-  const B = 10;
-
+// GameFrame: tactical border overlay
+// Replaced Skia Canvas with plain Views — saves one full GPU canvas allocation
+function GameFrame() {
   return (
-    <View
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 }}
-      pointerEvents="none"
-      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-    >
-      {W > 0 && H > 0 && (
-        <Canvas style={{ flex: 1 }}>
-          <Rect x={0} y={0} width={W} height={B} color="#1a252f" />
-          <Rect x={0} y={H - B} width={W} height={B} color="#1a252f" />
-          <Rect x={0} y={0} width={B} height={H} color="#1a252f" />
-          <Rect x={W - B} y={0} width={B} height={H} color="#1a252f" />
-          <Rect x={0} y={H * 0.44} width={B} height={44} color="#e74c3c" />
-          <Rect x={B} y={H * 0.43} width={4} height={52} color="rgba(231,76,60,0.3)" />
-          <Rect x={W - B} y={H * 0.44} width={B} height={44} color="#e74c3c" />
-          <Rect x={W - B - 4} y={H * 0.43} width={4} height={52} color="rgba(231,76,60,0.3)" />
-          <Rect x={B} y={H - B - 38} width={W - B * 2} height={38}>
-            <LinearGradient
-              start={vec(0, H - B - 38)}
-              end={vec(0, H - B)}
-              colors={['rgba(8,16,26,0)', 'rgba(8,16,26,0.97)']}
-            />
-          </Rect>
-        </Canvas>
-      )}
+    <View style={styles.frame} pointerEvents="none">
+      {/* Corner accent bars */}
+      <View style={styles.top} />
+      <View style={styles.bottom} />
+      <View style={styles.left} />
+      <View style={styles.right} />
+      {/* Red side indicators */}
+      <View style={styles.leftAccent} />
+      <View style={styles.rightAccent} />
+      {/* Bottom fade handled by bottom bar */}
     </View>
   );
 }
+
+const B = 10;
+const styles = StyleSheet.create({
+  frame: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+  },
+  top:          { position: 'absolute', top: 0,    left: 0, right: 0,    height: B,  backgroundColor: '#1a252f' },
+  bottom:       { position: 'absolute', bottom: 0, left: 0, right: 0,    height: B,  backgroundColor: '#1a252f' },
+  left:         { position: 'absolute', top: 0,    left: 0, bottom: 0,   width: B,   backgroundColor: '#1a252f' },
+  right:        { position: 'absolute', top: 0,    right: 0, bottom: 0,  width: B,   backgroundColor: '#1a252f' },
+  leftAccent:   { position: 'absolute', top: '44%', left: 0,             width: B,   height: 44, backgroundColor: '#e74c3c' },
+  rightAccent:  { position: 'absolute', top: '44%', right: 0,            width: B,   height: 44, backgroundColor: '#e74c3c' },
+});
+
+export default memo(GameFrame);

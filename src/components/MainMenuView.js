@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -106,7 +106,7 @@ const MainMenuView = () => {
 
             {/* Game Mode Selector Modal */}
             {showModeSelect && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 999, padding: 32 }}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,4,10,0.97)', justifyContent: 'center', alignItems: 'center', zIndex: 999, padding: 32 }}>
                     <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 3, marginBottom: 6 }}>{t('menu.selectMode')}</Text>
                     <Text style={{ color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 4, marginBottom: 32 }}>{t('menu.gameMode')}</Text>
                     {[
@@ -118,14 +118,14 @@ const MainMenuView = () => {
                             key={mode.id}
                             style={{ width: '100%', marginBottom: 12, padding: 18, borderWidth: 1,
                                 borderColor: gameMode === mode.id ? mode.color : '#2c3a44',
-                                backgroundColor: gameMode === mode.id ? `${mode.color}22` : 'transparent' }}
+                                backgroundColor: gameMode === mode.id ? `${mode.color}22` : 'rgba(8,14,22,1)' }}
                             onPress={() => { setGameMode(mode.id); setShowModeSelect(false); setUiMode('FACTION'); }}
                         >
                             <Text style={{ color: mode.color, fontSize: 14, fontWeight: '900', letterSpacing: 3, marginBottom: 4 }}>{mode.label}</Text>
                             <Text style={{ color: '#8090a0', fontSize: 11 }}>{mode.sub}</Text>
                         </TouchableOpacity>
                     ))}
-                    <TouchableOpacity style={{ marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2c3a44' }}
+                    <TouchableOpacity style={{ marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2c3a44', backgroundColor: 'rgba(8,14,22,1)' }}
                         onPress={() => setShowModeSelect(false)}>
                         <Text style={{ color: '#5f727d', letterSpacing: 2, fontSize: 12 }}>{t('menu.cancel')}</Text>
                     </TouchableOpacity>
@@ -263,4 +263,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default MainMenuView;
+export default memo(MainMenuView);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
     View, Text, TouchableOpacity,
     ScrollView, StyleSheet, Dimensions
@@ -8,6 +8,8 @@ import { useTranslation } from '../i18n/i18n';
 import { CAMPAIGN_MISSIONS } from '../logic/campaignMissions';
 
 const { height } = Dimensions.get('window');
+const { width: PW } = Dimensions.get('window');
+const IS_LOW_END = PW < 768;
 
 const STATUS_COLOR = {
     locked:   '#2c3a44',
@@ -316,4 +318,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default CampaignPanel;
+export default memo(CampaignPanel);

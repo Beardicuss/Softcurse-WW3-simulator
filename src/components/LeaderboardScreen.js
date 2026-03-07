@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, Dimensions
@@ -452,4 +452,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default LeaderboardScreen;
+export default memo(LeaderboardScreen);

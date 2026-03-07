@@ -6,7 +6,7 @@
  * Renders: explosions, capture pulses, nuke flashes, missile trails.
  */
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { memo, useEffect, useRef, useCallback } from 'react';
 import { Dimensions } from 'react-native';
 import {
     Canvas, Circle, Path, Skia, Group,
@@ -34,6 +34,11 @@ function regionCoords(id) {
 // { type: 'explosion'|'capture'|'nuke'|'missile', from?, to?, x, y, color }
 
 const CombatEffects = ({ effects = [], onComplete }) => {
+    const isLowEnd = React.useMemo(() => {
+        const { width: W2, height: H2 } = require('react-native').Dimensions.get('window');
+        return W2 * H2 < 1280 * 720;
+    }, []);
+    const maxEffects = isLowEnd ? 2 : 8;
     // One animated value per active effect (up to 8 simultaneous)
     const progA = useSharedValue(0);
     const progB = useSharedValue(0);
@@ -56,7 +61,7 @@ const CombatEffects = ({ effects = [], onComplete }) => {
     }, []);
 
     useEffect(() => {
-        effects.slice(0, 8).forEach((eff, i) => {
+        effects.slice(0, maxEffects).forEach((eff, i) => {
             runEffect(i, eff.type);
         });
     }, [effects]);
@@ -73,7 +78,7 @@ const CombatEffects = ({ effects = [], onComplete }) => {
                 pointerEvents: 'none',
             }}
         >
-            {effects.slice(0, 8).map((eff, i) => {
+            {effects.slice(0, maxEffects).map((eff, i) => {
                 const prog = progs[i];
                 const coords = eff.x != null ? { x: eff.x, y: eff.y } : regionCoords(eff.regionId);
 
@@ -188,4 +193,4 @@ const CombatEffects = ({ effects = [], onComplete }) => {
     );
 };
 
-export default CombatEffects;
+export default memo(CombatEffects);

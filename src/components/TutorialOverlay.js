@@ -11,7 +11,7 @@
  * Dismissed permanently after completion. Skippable at any step.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
     Dimensions, Animated
@@ -332,4 +332,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default TutorialOverlay;
+export default memo(TutorialOverlay);

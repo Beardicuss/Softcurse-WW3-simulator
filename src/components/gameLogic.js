@@ -1,4 +1,6 @@
 import { REGIONS, ADJ, FD, getTerrain } from '../data/mapData';
+// O(1) region lookup by id — built once at module load
+const REGIONS_MAP = new Map(REGIONS.map(r => [r.id, r]));
 
 export const INITIAL_DATE = new Date(2026, 4, 1); // May 1, 2026
 
@@ -255,7 +257,7 @@ export function calculateSupply(regions) {
     factions.forEach(fk => {
         const owned = Object.keys(regions).filter(rid => regions[rid].faction === fk);
         const hubs = owned.filter(rid => {
-            const regDef = REGIONS.find(r => r.id === rid);
+            const regDef = REGIONS_MAP.get(rid);
             return (regDef && regDef.strategic) || regions[rid].industry >= 10;
         });
 
@@ -290,7 +292,7 @@ export function aiScore(fromId, toId, fromD, toD, aiKey, state, pf) {
     const defPower = calculatePower(toD, false);
 
     s += (atkPower / Math.max(1, defPower)) * 22;
-    const reg = REGIONS.find(r => r.id === toId);
+    const reg = REGIONS_MAP.get(toId);
     if (reg?.strategic) s += 28;
     if (toD.faction === "NEUTRAL") s += 20;
     if (toD.faction === pf) {
@@ -359,12 +361,10 @@ export function processStability(factions, regions, turn, log) {
         }
 
         // Region stability slowly recovers each turn
-        ownedIds.forEach(rid => {
-            const r = updatedRegions[rid];
-            if (r.stability < 100) {
-                updatedRegions[rid] = { ...r, stability: Math.min(100, r.stability + 2) };
-            }
-        });
+        for (let si = 0; si < ownedIds.length; si++) {
+            const r = updatedRegions[ownedIds[si]];
+            if (r.stability < 100) r.stability = Math.min(100, r.stability + 2);
+        }
 
         updatedFactions[fk] = fac;
     });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 /**
@@ -41,4 +41,4 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
 });
 
-export default ScreenTransition;
+export default memo(ScreenTransition);

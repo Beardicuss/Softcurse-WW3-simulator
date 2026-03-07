@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, ScrollView } from 'react-native';
 import { Shield, Shuffle, Skull, Zap, Activity, HardHat, AlertTriangle, Crosshair } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
@@ -6,23 +6,28 @@ import { useTranslation } from '../i18n/i18n';
 import { FD } from '../data/mapData';
 
 const { height } = Dimensions.get('window');
+const { width: PW } = Dimensions.get('window');
+const IS_LOW_END = PW < 768;
 
 const DiplomacyPanel = ({ onClose }) => {
     const slideAnim = React.useRef(new Animated.Value(30)).current;
     const fadeAnim  = React.useRef(new Animated.Value(0)).current;
     React.useEffect(() => {
         Animated.parallel([
-            Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
-            Animated.timing(fadeAnim,  { toValue: 1, duration: 260, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
+            Animated.timing(fadeAnim,  { toValue: 1, duration: IS_LOW_END ? 0 : 180, useNativeDriver: true }),
         ]).start();
     }, []);
     const t = useTranslation();
-    const {
-        factions, playerFaction, regions,
-        offerPeace, offerNonAggression, proposeAlliance, backstabAlly,
-        getDiplomacyStatus, diplomacy,
-    } = useGameStore();
-    const factionData = factions[playerFaction];
+    const playerFaction      = useGameStore(s => s.playerFaction);
+    const factionData2       = useGameStore(s => s.factions[s.playerFaction]);
+    const diplomacy          = useGameStore(s => s.diplomacy);
+    const offerPeace         = useGameStore(s => s.offerPeace);
+    const offerNonAggression = useGameStore(s => s.offerNonAggression);
+    const proposeAlliance    = useGameStore(s => s.proposeAlliance);
+    const backstabAlly       = useGameStore(s => s.backstabAlly);
+    const getDiplomacyStatus = useGameStore(s => s.getDiplomacyStatus);
+    const factionData = factionData2;
 
     // Abstracting store actions for diplomacy
     // In a real expanded version, these would exist directly in useGameStore actions
@@ -437,4 +442,4 @@ const styles = StyleSheet.create({
     }
 });
 
-export default DiplomacyPanel;
+export default memo(DiplomacyPanel);
