@@ -11,10 +11,13 @@ const ACT_DATA = {
     2: {
         act:      'ACT II',
         actRu:    'АКТ II',
+        actGe:    'აქტი II',
         title:    'GLOBAL WAR',
         titleRu:  'ГЛОБАЛЬНАЯ ВОЙНА',
+        titleGe:  'გლობალური ომი',
         sub:      'The conflict has escaped all containment. Every nation mobilises. The world is at war.',
         subRu:    'Конфликт вышел из-под контроля. Каждая нация мобилизована. Мир охвачен войной.',
+        subGe:    'კონფლიქტი კონტროლს გამოეცალა. ყველა ერი მობილიზებულია. სამყარო ომშია.',
         color:    '#e74c3c',
         lines: [
             'Diplomatic channels: CLOSED',
@@ -28,15 +31,24 @@ const ACT_DATA = {
             'Ядерная доктрина: АКТИВНА',
             'Порог победы: БЕЗ ИЗМЕНЕНИЙ',
         ],
+        linesGe: [
+            'დიპლომატიური არხები: ᲓᲐᲮᲣᲠᲣᲚᲘᲐ',
+            'ყველა ფრაქციის ხელოვნური ინტელექტი: ᲨᲔᲣᲖᲦᲣᲓᲐᲕᲘᲐ',
+            'ბირთვული დოქტრინა: ᲐᲥᲢᲘᲣᲠᲘᲐ',
+            'გამარჯვების ზღვარი: ᲣᲪᲕᲚᲔᲚᲘᲐ',
+        ],
         icon: '⚔',
     },
     3: {
         act:      'ACT III',
         actRu:    'АКТ III',
+        actGe:    'აქტი III',
         title:    'ESCALATION',
         titleRu:  'ЭСКАЛАЦИЯ',
+        titleGe:  'ესკალაცია',
         sub:      'The nuclear threshold has been crossed. Civilisation teeters on the edge of annihilation.',
         subRu:    'Ядерный порог пройден. Цивилизация балансирует на краю уничтожения.',
+        subGe:    'ბირთვული ზღვარი გადაკვეთილია. ცივილიზაცია განადგურების პირასაა.',
         color:    '#9b59b6',
         lines: [
             'Dead Hand system: ARMED',
@@ -50,6 +62,12 @@ const ACT_DATA = {
             'Коллапс стабильности: УСКОРЯЕТСЯ',
             'Мир наблюдает. Действуйте быстро.',
         ],
+        linesGe: [
+            'მკვდარი ხელის სისტემა: ᲨᲔᲘᲐᲠᲐᲦᲔᲑᲣᲚᲘᲐ',
+            'რადიოაქტიური ნალექი ვრცელდება ყველა რეგიონში',
+            'სტაბილურობის კოლაფსი: ᲐᲩᲥᲐᲠᲓᲔᲑᲐ',
+            'სამყარო უყურებს. იმოქმედეთ სწრაფად.',
+        ],
         icon: '☢',
     },
 };
@@ -60,6 +78,7 @@ const ActCutscene = ({ act, onDismiss }) => {
     if (!data) return null;
 
     const ru = lang === 'ru';
+    const ge = lang === 'ge';
 
     // Animations
     const bg      = useRef(new Animated.Value(0)).current;
@@ -95,7 +114,7 @@ const ActCutscene = ({ act, onDismiss }) => {
         ]).start();
     }, []);
 
-    const lines = ru ? data.linesRu : data.lines;
+    const lines = ru ? data.linesRu : ge ? data.linesGe : data.lines;
 
     return (
         <Animated.View style={[styles.overlay, { opacity: bg, backgroundColor: `${data.color}18` }]}>
@@ -110,7 +129,7 @@ const ActCutscene = ({ act, onDismiss }) => {
 
                 {/* Act label */}
                 <Animated.Text style={[styles.actLabel, { opacity: actFade, color: data.color }]}>
-                    {data.icon}  {ru ? data.actRu : data.act}
+                    {data.icon}  {ru ? data.actRu : ge ? data.actGe : data.act}
                 </Animated.Text>
 
                 {/* Title */}
@@ -118,12 +137,12 @@ const ActCutscene = ({ act, onDismiss }) => {
                     styles.title, { color: data.color },
                     { opacity: titleO, transform: [{ translateY: titleY }] }
                 ]}>
-                    {ru ? data.titleRu : data.title}
+                    {ru ? data.titleRu : ge ? data.titleGe : data.title}
                 </Animated.Text>
 
                 {/* Subtitle */}
                 <Animated.Text style={[styles.sub, { opacity: subO }]}>
-                    {ru ? data.subRu : data.sub}
+                    {ru ? data.subRu : ge ? data.subGe : data.sub}
                 </Animated.Text>
 
                 {/* Divider */}
@@ -144,7 +163,7 @@ const ActCutscene = ({ act, onDismiss }) => {
                         onPress={onDismiss}
                     >
                         <Text style={[styles.btnText, { color: data.color }]}>
-                            {ru ? 'ПРОДОЛЖИТЬ ▶' : 'CONTINUE ▶'}
+                            {ru ? 'ПРОДОЛЖИТЬ ▶' : ge ? 'გაგრძელება ▶' : 'CONTINUE ▶'}
                         </Text>
                     </TouchableOpacity>
                 </Animated.View>

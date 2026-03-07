@@ -52,11 +52,9 @@ const SettingsView = () => {
                         >
                             <Text style={styles.langFlag}>🇬🇧</Text>
                             <Text style={[styles.langLabel, currentLang === 'en' && styles.langLabelActive]}>
-                                English
+                                {t('settings.langEnglish')}
                             </Text>
-                            {currentLang === 'en' && (
-                                <View style={styles.langActiveDot} />
-                            )}
+                            {currentLang === 'en' && <View style={styles.langActiveDot} />}
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -65,11 +63,20 @@ const SettingsView = () => {
                         >
                             <Text style={styles.langFlag}>🇷🇺</Text>
                             <Text style={[styles.langLabel, currentLang === 'ru' && styles.langLabelActive]}>
-                                Русский
+                                {t('settings.langRussian')}
                             </Text>
-                            {currentLang === 'ru' && (
-                                <View style={styles.langActiveDot} />
-                            )}
+                            {currentLang === 'ru' && <View style={styles.langActiveDot} />}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.langBtn, currentLang === 'ge' && styles.langBtnActive]}
+                            onPress={() => setLanguage('ge')}
+                        >
+                            <Text style={styles.langFlag}>🇬🇪</Text>
+                            <Text style={[styles.langLabel, currentLang === 'ge' && styles.langLabelActive]}>
+                                {t('settings.langGeorgian')}
+                            </Text>
+                            {currentLang === 'ge' && <View style={styles.langActiveDot} />}
                         </TouchableOpacity>
                     </View>
                 </View>

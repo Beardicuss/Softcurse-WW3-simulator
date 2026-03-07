@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, Dimensions, Animated
+    StyleSheet, Dimensions, Animated, Modal
 } from 'react-native';
 import useGameStore from '../store/useGameStore';
 import { useTranslation } from '../i18n/i18n';
@@ -14,6 +14,7 @@ const CreditsScreen = ({ onClose }) => {
     const t    = useTranslation();
     const lang = useGameStore(s => s.settings?.language || 'en');
     const ru   = lang === 'ru';
+    const ge   = lang === 'ge';
 
     const fadeAnim    = useRef(new Animated.Value(0)).current;
     const scanAnim    = useRef(new Animated.Value(0)).current;
@@ -44,6 +45,7 @@ const CreditsScreen = ({ onClose }) => {
     const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.0] });
 
     return (
+        <Modal visible={true} animationType="none" transparent={false} onRequestClose={onClose} statusBarTranslucent>
         <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
             {/* Scanline effect */}
             <Animated.View style={[styles.scanline, { transform: [{ translateY: scanlineY }] }]} pointerEvents="none" />
@@ -72,7 +74,7 @@ const CreditsScreen = ({ onClose }) => {
                         onPress={() => setTab('credits')}
                     >
                         <Text style={[styles.tabText, tab === 'credits' && styles.tabTextActive]}>
-                            {ru ? '👤 АВТОРЫ' : '👤 CREDITS'}
+                            {ru ? '👤 АВТОРЫ' : ge ? '👤 ავტორები' : '👤 CREDITS'}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -80,7 +82,7 @@ const CreditsScreen = ({ onClose }) => {
                         onPress={() => setTab('about')}
                     >
                         <Text style={[styles.tabText, tab === 'about' && styles.tabTextActive]}>
-                            {ru ? '📖 ОБ ИГРЕ' : '📖 ABOUT'}
+                            {ru ? '📖 ОБ ИГРЕ' : ge ? '📖 შესახებ' : '📖 ABOUT'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -96,7 +98,7 @@ const CreditsScreen = ({ onClose }) => {
                                 <Animated.Text style={[styles.studioGlyph, { opacity: glowOpacity }]}>⬡</Animated.Text>
                                 <Text style={styles.studioName}>SOFTCURSE STUDIO</Text>
                                 <Text style={styles.studioTagline}>
-                                    {ru ? 'НЕЗАВИСИМАЯ СТУДИЯ РАЗРАБОТКИ ИГР' : 'INDEPENDENT GAME DEVELOPMENT STUDIO'}
+                                    {ru ? 'НЕЗАВИСИМАЯ СТУДИЯ РАЗРАБОТКИ ИГР' : ge ? 'დამოუკიდებელი სათამაშო სტუდია' : 'INDEPENDENT GAME DEVELOPMENT STUDIO'}
                                 </Text>
                                 <View style={styles.studioDivider} />
                             </View>
@@ -112,18 +114,19 @@ const CreditsScreen = ({ onClose }) => {
                                 <Text style={styles.devTitle}>
                                     {ru
                                         ? 'Основатель & Создатель Softcurse Studio'
+                                        : ge ? 'Softcurse Studio-ს დამფუძნებელი & შემქმნელი'
                                         : 'Founder & Creator of Softcurse Studio'}
                                 </Text>
                                 <View style={styles.devRoles}>
                                     {[
-                                        ru ? 'Разработка игры'       : 'Game Development',
-                                        ru ? 'Игровой дизайн'       : 'Game Design',
-                                        ru ? 'Системы ИИ'           : 'AI Systems',
-                                        ru ? 'UI/UX Дизайн'         : 'UI/UX Design',
-                                        ru ? 'Стратегические системы': 'Strategy Systems',
-                                        ru ? 'Нарративный дизайн'   : 'Narrative Design',
-                                        ru ? 'Оптимизация движка'   : 'Engine Optimization',
-                                        ru ? 'Интернационализация'  : 'Localization (EN/RU)',
+                                        ru ? 'Разработка игры'       : ge ? 'თამაშის განვითარება'     : 'Game Development',
+                                        ru ? 'Игровой дизайн'       : ge ? 'თამაშის დიზაინი'        : 'Game Design',
+                                        ru ? 'Системы ИИ'           : ge ? 'ხელოვნური ინტელექტი'   : 'AI Systems',
+                                        ru ? 'UI/UX Дизайн'         : ge ? 'UI/UX დიზაინი'          : 'UI/UX Design',
+                                        ru ? 'Стратегические системы': ge ? 'სტრატეგიული სისტემები' : 'Strategy Systems',
+                                        ru ? 'Нарративный дизайн'   : ge ? 'ნარატიული დიზაინი'      : 'Narrative Design',
+                                        ru ? 'Оптимизация движка'   : ge ? 'ძრავის ოპტიმიზაცია'    : 'Engine Optimization',
+                                        ru ? 'Интернационализация'  : ge ? 'ლოკალიზაცია (EN/RU/GE)': 'Localization (EN/RU/GE)',
                                     ].map((role, i) => (
                                         <View key={i} style={styles.roleChip}>
                                             <Text style={styles.roleChipText}>{role}</Text>
@@ -134,6 +137,7 @@ const CreditsScreen = ({ onClose }) => {
                                     <Text style={styles.soloNoteText}>
                                         {ru
                                             ? '★ Эта игра полностью создана одним человеком —\nот кода до дизайна, от механик до нарратива.'
+                                            : ge ? '★ ეს თამაში მთლიანად ერთმა ადამიანმა შექმნა —\nკოდიდან დიზაინამდე, მექანიკიდან ნარატივამდე.'
                                             : '★ This game was built entirely by one person —\nfrom code to design, mechanics to narrative.'}
                                     </Text>
                                 </View>
@@ -142,7 +146,7 @@ const CreditsScreen = ({ onClose }) => {
                             {/* Tech credits */}
                             <View style={styles.techBlock}>
                                 <Text style={styles.sectionLabel}>
-                                    {ru ? 'ТЕХНОЛОГИИ' : 'BUILT WITH'}
+                                    {ru ? 'ТЕХНОЛОГИИ' : ge ? 'ტექნოლოგიები' : 'BUILT WITH'}
                                 </Text>
                                 {[
                                     { name: 'React Native',       role: ru ? 'Мобильный движок'     : 'Mobile Engine' },
@@ -163,11 +167,12 @@ const CreditsScreen = ({ onClose }) => {
                             {/* Special thanks */}
                             <View style={styles.thanksBlock}>
                                 <Text style={styles.sectionLabel}>
-                                    {ru ? 'ОСОБАЯ БЛАГОДАРНОСТЬ' : 'SPECIAL THANKS'}
+                                    {ru ? 'ОСОБАЯ БЛАГОДАРНОСТЬ' : ge ? 'განსაკუთრებული მადლობა' : 'SPECIAL THANKS'}
                                 </Text>
                                 <Text style={styles.thanksText}>
                                     {ru
                                         ? 'Всем, кто верил в этот проект.\nСообществу разработчиков React Native.\nВсем игрокам, которые дали обратную связь.\n\nИ тем, кто не спал до 3 ночи,\nдебаггируя систему ИИ.'
+                                        : ge ? 'ყველას, ვინც ამ პროექტს სჯეროდა.\nReact Native-ის დეველოპერთა საზოგადოებას.\nყველა მოთამაშეს, ვინც გამოხმაურება გასცა.\n\nმათ, ვინც გამთენიამდე ეღვიძა\nხელოვნური ინტელექტის სისტემის გამართვაზე.'
                                         : 'Everyone who believed in this project.\nThe React Native developer community.\nAll players who gave feedback.\n\nAnd to whoever stayed up until 3am\ndebugging the AI systems.'}
                                 </Text>
                             </View>
@@ -180,6 +185,7 @@ const CreditsScreen = ({ onClose }) => {
                                 <Text style={styles.copyrightSub}>
                                     {ru
                                         ? 'Все права защищены. Любое сходство с реальными событиями случайно.'
+                                        : ge ? 'ყველა უფლება დაცულია. ნებისმიერი მსგავსება რეალურ მოვლენებთან შემთხვევითია.'
                                         : 'All rights reserved. Any resemblance to actual events is coincidental.'}
                                 </Text>
                             </View>
@@ -193,20 +199,21 @@ const CreditsScreen = ({ onClose }) => {
                             {/* Title card */}
                             <View style={styles.aboutTitleCard}>
                                 <Text style={styles.aboutGameTitle}>
-                                    {ru ? 'МИРОВАЯ ВОЙНА III' : 'WORLD WAR III'}
+                                    {ru ? 'МИРОВАЯ ВОЙНА III' : ge ? 'მსოფლიო ომი III' : 'WORLD WAR III'}
                                 </Text>
                                 <Text style={styles.aboutGameSubtitle}>
-                                    {ru ? 'ГЛОБАЛЬНЫЙ КОЛЛАПС' : 'GLOBAL COLLAPSE'}
+                                    {ru ? 'ГЛОБАЛЬНЫЙ КОЛЛАПС' : ge ? 'გლობალური კოლაფსი' : 'GLOBAL COLLAPSE'}
                                 </Text>
                                 <Text style={styles.aboutGenre}>
                                     {ru
                                         ? 'Глобальная пошаговая стратегия · Геополитическая симуляция'
+                                        : ge ? 'გლობალური სვლა-სვლა სტრატეგია · გეოპოლიტიკური სიმულაცია'
                                         : 'Grand Turn-Based Strategy · Geopolitical Simulation'}
                                 </Text>
                             </View>
 
                             {/* About sections */}
-                            {(ru ? ABOUT_SECTIONS_RU : ABOUT_SECTIONS_EN).map((section, i) => (
+                            {(ru ? ABOUT_SECTIONS_RU : ge ? ABOUT_SECTIONS_GE : ABOUT_SECTIONS_EN).map((section, i) => (
                                 <View key={i} style={styles.aboutSection}>
                                     <View style={styles.aboutSectionHeader}>
                                         <Text style={styles.aboutSectionIcon}>{section.icon}</Text>
@@ -219,17 +226,17 @@ const CreditsScreen = ({ onClose }) => {
                             {/* System specs */}
                             <View style={styles.specsBlock}>
                                 <Text style={styles.sectionLabel}>
-                                    {ru ? 'ХАРАКТЕРИСТИКИ ИГРЫ' : 'GAME SPECS'}
+                                    {ru ? 'ХАРАКТЕРИСТИКИ ИГРЫ' : ge ? 'თამაშის მახასიათებლები' : 'GAME SPECS'}
                                 </Text>
                                 {[
-                                    { label: ru ? 'Регионы' : 'Regions',           value: '46' },
-                                    { label: ru ? 'Фракции' : 'Factions',           value: '5' },
-                                    { label: ru ? 'Технологии' : 'Technologies',   value: '20+' },
-                                    { label: ru ? 'Миссии' : 'Missions',            value: '18' },
-                                    { label: ru ? 'Мировые события' : 'World Events', value: '42+' },
-                                    { label: ru ? 'Достижения' : 'Achievements',   value: '41' },
-                                    { label: ru ? 'Языки' : 'Languages',            value: 'EN / RU' },
-                                    { label: ru ? 'Игровые режимы' : 'Game Modes', value: ru ? '3 (Кампания / Блицкриг / Выживание)' : '3 (Campaign / Blitz / Survival)' },
+                                    { label: ru ? 'Регионы' : ge ? 'რეგიონები' : 'Regions',           value: '46' },
+                                    { label: ru ? 'Фракции' : ge ? 'ფრაქციები' : 'Factions',           value: '5' },
+                                    { label: ru ? 'Технологии' : ge ? 'ტექნოლოგიები' : 'Technologies',   value: '20+' },
+                                    { label: ru ? 'Миссии' : ge ? 'მისიები' : 'Missions',            value: '18' },
+                                    { label: ru ? 'Мировые события' : ge ? 'მსოფლიო მოვლენები' : 'World Events', value: '42+' },
+                                    { label: ru ? 'Достижения' : ge ? 'მიღწევები' : 'Achievements',   value: '41' },
+                                    { label: ru ? 'Языки' : ge ? 'ენები' : 'Languages',            value: 'EN / RU / GE' },
+                                    { label: ru ? 'Игровые режимы' : ge ? 'თამაშის რეჟიმები' : 'Game Modes', value: ru ? '3 (Кампания / Блицкриг / Выживание)' : ge ? '3 (კამპანია / ბლიცკრიგი / გადარჩენა)' : '3 (Campaign / Blitz / Survival)' },
                                 ].map((spec, i) => (
                                     <View key={i} style={styles.specRow}>
                                         <Text style={styles.specLabel}>{spec.label}</Text>
@@ -245,8 +252,57 @@ const CreditsScreen = ({ onClose }) => {
                 </ScrollView>
             </View>
         </Animated.View>
+        </Modal>
     );
 };
+
+const ABOUT_SECTIONS_GE = [
+    {
+        icon: '🌍',
+        title: 'კონცეფცია',
+        body: 'მსოფლიო ომი III: გლობალური კოლაფსი — გლობალური სტრატეგია ახლო მომავალში. სამყარო გახლეჩილია ნაციონალიზმის ზრდით, რესურსების დეფიციტით, პროქსი ომებით. თქვენ ხელმძღვანელობთ ხუთი სუპერსახელმწიფოდან ერთ-ერთს. ეს არ არის სიდიადის თამაში — ეს არის გადარჩენის და ძალაუფლების ფასის თამაში.',
+    },
+    {
+        icon: '⚙',
+        title: 'ძირითადი სისტემები',
+        body: 'თამაში მუშაობს Nightmare Engine-ზე — სტრატეგიული ბირთვი, რომელიც ერთდროულად მოდელირებს სამხედრო ძალას, ეკონომიკურ ზეწოლას, ტექნოლოგიურ განვითარებას და სტაბილურობას. ყოველ მოლოდინში ხუთი ხელოვნური ინტელექტის ფრაქცია დამოუკიდებელ სტრატეგიულ დოქტრინებს ახორციელებს.',
+    },
+    {
+        icon: '🗺',
+        title: 'რუკა',
+        body: '46 ტერიტორია ყველა კონტინენტზე გამოსახულია React Native Skia SVG რუკაზე. თითოეულ რეგიონს აქვს საკუთარი ეკონომიკა, მრეწველობა, სტაბილურობა და სტრატეგიული ღირებულება. ომის ნისლი გაძლევს არასრული დაზვერვის პირობებში მოქმედების საშუალებას.',
+    },
+    {
+        icon: '☢',
+        title: 'სამი-აქტიანი ესკალაცია',
+        body: 'კამპანიები სამ აქტში ვითარდება. აქტი I: ჩვეულებრივი ომი და დიპლომატია. აქტი II: სრული მობილიზაცია, დიპლომატიური არხები დახურულია. აქტი III: ბირთვული დოქტრინა გააქტიურდა, მკვდარი ხელის სისტემა შეიარაღებულია.',
+    },
+    {
+        icon: '💡',
+        title: 'ტექნოლოგიების ხე',
+        body: 'ოცზე მეტი კვლევითი კვანძი ხსნის მოწინავე სამხედრო შესაძლებლობებს, ეკონომიკურ ბონუსებს და სპეციალურ იარაღს. ურთიერთგამომრიცხავი გზები სტრატეგიულ ვალდებულებებს ძალავს — ყველაფრის ქონა შეუძლებელია.',
+    },
+    {
+        icon: '🕵',
+        title: 'დაზვერვა და დიპლომატია',
+        body: 'სადაზვერვო ოპერაციები: გამოავლინეთ მტრის ძალები, განადგურეთ ინფრასტრუქტურა, ლიკვიდირება მოახდინეთ ხელმძღვანელობაზე. ეკონომიკური დიპლომატია: სავაჭრო მარშრუტები, სანქციები და საზღვაო ბლოკადები.',
+    },
+    {
+        icon: '🎯',
+        title: 'კამპანიის მისიები',
+        body: '18 პროგრესული მისია ამატებს ამოცანებს ქვიშაყუთს — ადრეული ტერიტორიული მიზნებიდან გვიანდელ გადარჩენის გამოწვევებამდე. მისიების შესრულება ჯილდოებს სახსრებით, ნავთობით და მარაგებით.',
+    },
+    {
+        icon: '🏆',
+        title: 'პროგრესი',
+        body: '41 მიღწევა აკვირდება ოსტატობას ყველა განზომილებაში: დაპყრობა, ეკონომიკა, დაზვერვა, გადარჩენა და ბირთვული ესკალაცია. რეიტინგი ინახავს საუკეთესო გათამაშებებს 10,000 ქულიანი ბონუსით სრული გამარჯვებისთვის.',
+    },
+    {
+        icon: '🔊',
+        title: 'დიზაინის ფილოსოფია',
+        body: 'გლობალური კოლაფსი შეიქმნა ერთი კითხვის გარშემო: როგორია სუპერსახელმწიფოს მეთაურობა განადგურების პირას? პასუხი მოითხოვდა სისტემებს, სადაც ყოველ გადაწყვეტილებას წონა აქვს და ბირთვული ომი ყოველთვის შესაძლებელია.',
+    },
+];
 
 const ABOUT_SECTIONS_EN = [
     {
@@ -394,8 +450,8 @@ const styles = StyleSheet.create({
         fontSize: 9,
         letterSpacing: 2,
     },
-    closeBtn: { padding: 8, marginTop: -4 },
-    closeBtnText: { color: '#3a5060', fontSize: 22 },
+    closeBtn: { padding: 16, marginTop: -8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    closeBtnText: { color: '#5f8090', fontSize: 26, fontWeight: '300' },
 
     // ── Tabs ──────────────────────────────────────────────────────────────
     tabBar: {

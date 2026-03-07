@@ -1,54 +1,73 @@
 /**
- * WW3: GLOBAL COLLAPSE — Audio System (expo-av activated)
+ * WW3: GLOBAL COLLAPSE — Audio System (expo-av)
  *
- * expo-av is installed. Drop .mp3 files into assets/audio/ 
- * then uncomment the matching require() line in AUDIO_ASSETS.
+ * Drop .mp3 files into assets/audio/ to activate each sound.
+ * Missing files are silently skipped — haptic fallback always fires.
  *
- * REQUIRED FILES (create folder assets/audio/ first):
- *   attack.mp3        explosion/gunfire burst        0.5-1s
- *   capture.mp3       triumphant stab                0.5s
- *   defense.mp3       impact thud                    0.3s
- *   nuke.mp3          deep rumble + siren             2s
- *   orbital.mp3       energy beam                    0.8s
- *   endTurn.mp3       mechanical confirm click        0.3s
- *   buildUnit.mp3     deploy/equipment sound          0.4s
- *   research.mp3      tech beep/unlock               0.4s
- *   alert.mp3         urgent ping                    0.3s
- *   crisis.mp3        tension alarm                  0.6s
- *   music_tension.mp3 Act I ambient loop             60s+
- *   music_war.mp3     Act II military loop           60s+
- *   music_nuclear.mp3 Act III intense loop           60s+
- *
- * FREE SOURCES:
- *   SFX:   mixkit.co | freesound.org (CC0 license)
- *   Music: incompetech.com (Kevin MacLeod, royalty-free)
+ * Hermes (Android) forbids dynamic require(variable) — every require()
+ * here is a static string literal so Metro can resolve it at bundle time.
+ * Files that don't exist yet simply stay null and are skipped at runtime.
  */
 
 import { useEffect, useCallback } from 'react';
-// Guard expo-av — may not be available in all environments
+
 let Audio = null;
-try { Audio = require('expo-av').Audio; } catch (e) { /* expo-av not installed */ }
+try { Audio = require('expo-av').Audio; } catch (e) {}
+
 import useGameStore from '../store/useGameStore';
 
-// ─── Asset Map ────────────────────────────────────────────────────────────────
-// Uncomment each line after adding the file to assets/audio/
+// ─── Static asset requires ────────────────────────────────────────────────────
+// Each line is a static literal — Hermes is satisfied.
+// If a file is missing, catch sets it to null and the sound is skipped.
+
+let _attack        = null;
+let _capture       = null;
+let _defense       = null;
+let _nuke          = null;
+let _orbital       = null;
+let _endTurn       = null;
+let _buildUnit     = null;
+let _research      = null;
+let _alert         = null;
+let _crisis        = null;
+let _event_good    = null;
+let _event_bad     = null;
+let _music_tension = null;
+let _music_war     = null;
+let _music_nuclear = null;
+
+try { _attack        = require('../../assets/audio/attack.mp3');        } catch (_) {}
+try { _capture       = require('../../assets/audio/capture.mp3');       } catch (_) {}
+try { _defense       = require('../../assets/audio/defense.mp3');       } catch (_) {}
+try { _nuke          = require('../../assets/audio/nuke.mp3');          } catch (_) {}
+try { _orbital       = require('../../assets/audio/orbital.mp3');       } catch (_) {}
+try { _endTurn       = require('../../assets/audio/endTurn.mp3');       } catch (_) {}
+try { _buildUnit     = require('../../assets/audio/buildUnit.mp3');     } catch (_) {}
+try { _research      = require('../../assets/audio/research.mp3');      } catch (_) {}
+try { _alert         = require('../../assets/audio/alert.mp3');         } catch (_) {}
+try { _crisis        = require('../../assets/audio/crisis.mp3');        } catch (_) {}
+try { _event_good    = require('../../assets/audio/event_good.mp3');    } catch (_) {}
+try { _event_bad     = require('../../assets/audio/event_bad.mp3');     } catch (_) {}
+try { _music_tension = require('../../assets/audio/music_tension.mp3'); } catch (_) {}
+try { _music_war     = require('../../assets/audio/music_war.mp3');     } catch (_) {}
+try { _music_nuclear = require('../../assets/audio/music_nuclear.mp3'); } catch (_) {}
 
 export const AUDIO_ASSETS = {
-    attack: require('../../assets/audio/attack.mp3'),
-    capture: require('../../assets/audio/capture.mp3'),
-    defense: require('../../assets/audio/defense.mp3'),
-    nuke: require('../../assets/audio/nuke.mp3'),
-    orbital: require('../../assets/audio/orbital.mp3'),
-    endTurn: require('../../assets/audio/endTurn.mp3'),
-    buildUnit: require('../../assets/audio/buildUnit.mp3'),
-    research: require('../../assets/audio/research.mp3'),
-    alert: require('../../assets/audio/alert.mp3'),
-    crisis: require('../../assets/audio/crisis.mp3'),
-    event_good: require('../../assets/audio/event_good.mp3'),
-    event_bad: require('../../assets/audio/event_bad.mp3'),
-    music_tension: require('../../assets/audio/music_tension.mp3'),
-    music_war: require('../../assets/audio/music_war.mp3'),
-    music_nuclear: require('../../assets/audio/music_nuclear.mp3'),
+    attack:        _attack,
+    capture:       _capture,
+    defense:       _defense,
+    nuke:          _nuke,
+    orbital:       _orbital,
+    endTurn:       _endTurn,
+    buildUnit:     _buildUnit,
+    research:      _research,
+    alert:         _alert,
+    crisis:        _crisis,
+    event_good:    _event_good,
+    event_bad:     _event_bad,
+    music_tension: _music_tension,
+    music_war:     _music_war,
+    music_nuclear: _music_nuclear,
 };
 
 // ─── Haptic Fallback ──────────────────────────────────────────────────────────
@@ -88,27 +107,24 @@ class AudioManager {
     }
 
     async _setup() {
-        if (!Audio) return; // expo-av not available, use haptics only
+        if (!Audio) return;
         try {
             await Audio.setAudioModeAsync({
                 playsInSilentModeIOS:    true,
                 staysActiveInBackground: false,
                 shouldDuckAndroid:       true,
             });
-        } catch (e) {
-            // silently degrade — haptic feedback still works
-        }
+        } catch (e) {}
     }
 
     async play(key) {
-        vibrate(key); // instant haptic regardless of audio
+        vibrate(key);
         if (!this.sfxEnabled || this.sfxVolume === 0) return;
         const asset = AUDIO_ASSETS[key];
-        if (!asset) return;
+        if (!asset || !Audio) return;
         try {
             let sound = this._cache[key];
             if (!sound) {
-                if (!Audio) return;
                 const { sound: s } = await Audio.Sound.createAsync(asset, { shouldPlay: false });
                 this._cache[key] = s;
                 sound = s;
@@ -116,7 +132,7 @@ class AudioManager {
             await sound.setVolumeAsync(this.sfxVolume);
             await sound.replayAsync();
         } catch (e) {
-            console.warn(`[Audio] play(${key}):`, e.message);
+            console.warn('[Audio] play(' + key + '):', e.message);
         }
     }
 
@@ -133,7 +149,7 @@ class AudioManager {
             this._music = sound;
             this._track = trackKey;
         } catch (e) {
-            console.warn(`[Audio] music(${trackKey}):`, e.message);
+            console.warn('[Audio] music(' + trackKey + '):', e.message);
         }
     }
 
@@ -176,13 +192,11 @@ export function useAudio() {
     const actPhase = useGameStore(s => s.actPhase);
     const uiMode   = useGameStore(s => s.uiMode);
 
-    // Sync volume — store uses musicVolume/sfxVolume directly (0 = off, >0 = on)
     useEffect(() => {
         audioManager.setMusicVolume(settings?.musicVolume ?? 0.8);
         audioManager.setSfxVolume(settings?.sfxVolume     ?? 1.0);
     }, [settings?.musicVolume, settings?.sfxVolume]);
 
-    // Ambient music changes with act
     useEffect(() => {
         if (uiMode !== 'GAME') return;
         const track = actPhase === 3 ? 'music_nuclear'
@@ -191,7 +205,6 @@ export function useAudio() {
         audioManager.playMusic(track);
     }, [actPhase, uiMode]);
 
-    // Stop when leaving game
     useEffect(() => {
         if (uiMode !== 'GAME') audioManager.stopMusic();
     }, [uiMode]);

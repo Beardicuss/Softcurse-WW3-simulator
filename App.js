@@ -38,6 +38,8 @@ import ActCutscene from './src/components/ActCutscene';
 import ScreenTransition from './src/components/ScreenTransition';
 import LeaderboardScreen from './src/components/LeaderboardScreen';
 import TradePanel from './src/components/TradePanel';
+import TutorialOverlay from './src/components/TutorialOverlay';
+import Tooltip from './src/components/Tooltip';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,6 +48,7 @@ const App = () => {
     uiMode, playerFaction, factions, regions,
     turn, date, gameLog, selectedRegionId, startGame, checkHasSave,
     nukeUsedThisTurn, launchNuke, orbitalStrike, blackoutRegion, aiMemory,
+    updateSettings, undoLastAction, undoLabel,
     isGameOver, gameOverReason, actPhase, actEvents, activeEventLog,
     weather, spyReveal, spySabotage, spyAssassinate,
     missionProgress, newlyCompletedMissions,
@@ -76,6 +79,25 @@ const App = () => {
   const [showDiplomacy, setShowDiplomacy] = React.useState(false);
   const [showResearch, setShowResearch] = React.useState(false);
   const [showNukeModal, setShowNukeModal] = React.useState(false);
+  const [confirmAction, setConfirmAction] = React.useState(null);
+  const [showTutorial, setShowTutorial] = React.useState(false);
+  // Show tutorial on first-ever game start
+  const tutorialShownRef = React.useRef(false);
+  React.useEffect(() => {
+    if (uiMode === 'GAME' && !tutorialShownRef.current) {
+      const alreadySeen = settings?.tutorialSeen;
+      if (!alreadySeen) {
+        setTimeout(() => setShowTutorial(true), 800);
+        tutorialShownRef.current = true;
+      }
+    }
+  }, [uiMode]);
+
+  const dismissTutorial = () => {
+    setShowTutorial(false);
+    updateSettings({ tutorialSeen: true });
+  };
+ // { type, label, icon, detail, onConfirm }
   const [showSpyMenu, setShowSpyMenu] = React.useState(false);
   const [showCampaign, setShowCampaign] = React.useState(false);
   const [missionToast, setMissionToast] = React.useState(null);
@@ -243,22 +265,22 @@ const App = () => {
           <View style={styles.topResourceBar}>
 
             <View style={styles.resourcesContainer}>
-              <View style={styles.resourceItem}>
+              <Tooltip text={t('tooltip.oil')} style={styles.resourceItem}>
                 <Droplet size={13} color="#ffd700" />
                 <Text style={styles.resourceText}>{currentFS.oil} {t('hud.oil')}</Text>
-              </View>
-              <View style={styles.resourceItem}>
+              </Tooltip>
+              <Tooltip text={t('tooltip.steel')} style={styles.resourceItem}>
                 <Layers size={13} color="#bdc3c7" />
                 <Text style={styles.resourceText}>{currentFS.supplies} {t('hud.steel')}</Text>
-              </View>
-              <View style={styles.resourceItem}>
+              </Tooltip>
+              <Tooltip text={t('tooltip.funds')} style={styles.resourceItem}>
                 <Banknote size={13} color="#2ecc71" />
                 <Text style={styles.resourceText}>${currentFS.funds} {t('hud.money')}</Text>
-              </View>
-              <View style={styles.resourceItem}>
+              </Tooltip>
+              <Tooltip text={t('tooltip.stability')} style={styles.resourceItem}>
                 <Zap size={13} color="#3498db" />
                 <Text style={styles.resourceText}>{currentFS?.stability || 0}% {t('hud.energy')}</Text>
-              </View>
+              </Tooltip>
               <TouchableOpacity
                 style={[styles.resourceItem, styles.techPointsItem, showResearch && styles.techPointsActive]}
                 onPress={() => { setShowResearch(!showResearch); setShowEconomy(false); setShowDiplomacy(false); }}
@@ -475,7 +497,15 @@ const App = () => {
                       {/* ORBITAL STRIKE — Space T3 */}
                       <TouchableOpacity
                         style={[styles.specialBtn, styles.specialBtnOrbital, !canOrbital && styles.specialBtnDisabled]}
-                        onPress={() => { if (canOrbital) orbitalStrike(selectedRegionId); }}
+                        onPress={() => {
+                          if (!canOrbital) return;
+                          setConfirmAction({
+                            type: 'orbital', icon: '⚡',
+                            label: t('action.orbital'),
+                            detail: t('confirm.orbital.detail').replace('{region}', (selectedRegionId||'').replace(/_/g,' ').toUpperCase()),
+                            onConfirm: () => { orbitalStrike(selectedRegionId); setConfirmAction(null); },
+                          });
+                        }}
                         disabled={!canOrbital}
                       >
                         <Text style={styles.specialBtnIcon}>⚡</Text>
@@ -488,7 +518,15 @@ const App = () => {
                       {/* E-WAR BLACKOUT — EW T3 */}
                       <TouchableOpacity
                         style={[styles.specialBtn, styles.specialBtnBlackout, !canBlackout && styles.specialBtnDisabled]}
-                        onPress={() => { if (canBlackout) blackoutRegion(selectedRegionId); }}
+                        onPress={() => {
+                          if (!canBlackout) return;
+                          setConfirmAction({
+                            type: 'blackout', icon: '📡',
+                            label: t('action.blackout'),
+                            detail: t('confirm.blackout.detail').replace('{region}', (selectedRegionId||'').replace(/_/g,' ').toUpperCase()),
+                            onConfirm: () => { blackoutRegion(selectedRegionId); setConfirmAction(null); },
+                          });
+                        }}
                         disabled={!canBlackout}
                       >
                         <Text style={styles.specialBtnIcon}>📡</Text>
@@ -649,6 +687,49 @@ const App = () => {
               PROCESSING...
             </Text>
           </Animated.View>
+        )}
+
+
+        {/* ── TUTORIAL OVERLAY ─────────────────────────────────────── */}
+        {showTutorial && uiMode === 'GAME' && (
+          <TutorialOverlay onDismiss={dismissTutorial} />
+        )}
+
+        {/* ── CONFIRM ACTION MODAL ──────────────────────────────────── */}
+        {confirmAction && (
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmModal}>
+              <Text style={styles.confirmIcon}>{confirmAction.icon}</Text>
+              <Text style={styles.confirmTitle}>{confirmAction.label}</Text>
+              <Text style={styles.confirmDetail}>{confirmAction.detail}</Text>
+              <View style={styles.confirmBtns}>
+                <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setConfirmAction(null)}>
+                  <Text style={styles.confirmCancelText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.confirmOkBtn,
+                    confirmAction.type === 'orbital'  && { backgroundColor: '#2980b9' },
+                    confirmAction.type === 'blackout' && { backgroundColor: '#8e44ad' },
+                  ]}
+                  onPress={confirmAction.onConfirm}
+                >
+                  <Text style={styles.confirmOkText}>{t('common.confirm')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+
+        {/* ── UNDO LAST ACTION ─────────────────────────────────────── */}
+        {undoLabel && uiMode === 'GAME' && (
+          <View style={styles.undoBar}>
+            <Text style={styles.undoLabel}>↩ {t('undo.label')} ({t('undo.' + undoLabel)})</Text>
+            <TouchableOpacity style={styles.undoBtn} onPress={() => { undoLastAction(); }}>
+              <Text style={styles.undoBtnText}>{t('undo.action')}</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
     </GestureHandlerRootView>
@@ -1040,6 +1121,53 @@ const styles = StyleSheet.create({
   },
 
   // NUKE STOCKPILE display in top bar
+
+
+  // ── Undo bar ──────────────────────────────────────────────────────────────
+  undoBar: {
+    position: 'absolute', bottom: 90, left: 14, right: 14,
+    backgroundColor: 'rgba(4,9,15,0.96)',
+    borderWidth: 1, borderColor: '#1a3a4a',
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 8,
+    zIndex: 200,
+  },
+  undoLabel: {
+    color: '#4a7a8a', fontSize: 10, fontWeight: '700', letterSpacing: 1, flex: 1,
+  },
+  undoBtn: {
+    backgroundColor: '#1a3a4a', paddingVertical: 6, paddingHorizontal: 14,
+  },
+  undoBtnText: {
+    color: '#3a9eff', fontSize: 10, fontWeight: '900', letterSpacing: 1.5,
+  },
+  confirmOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center',
+    zIndex: 300,
+  },
+  confirmModal: {
+    backgroundColor: '#06101c',
+    borderWidth: 1, borderColor: '#1a3a4a',
+    padding: 24, marginHorizontal: 30,
+    alignItems: 'center', minWidth: 280,
+  },
+  confirmIcon: { fontSize: 36, marginBottom: 10 },
+  confirmTitle: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 2, marginBottom: 8 },
+  confirmDetail: { color: '#5a8a9a', fontSize: 11, textAlign: 'center', marginBottom: 20, lineHeight: 18 },
+  confirmBtns: { flexDirection: 'row', gap: 12 },
+  confirmCancelBtn: {
+    paddingVertical: 10, paddingHorizontal: 20,
+    borderWidth: 1, borderColor: '#1a3a4a',
+  },
+  confirmCancelText: { color: '#4a6070', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  confirmOkBtn: {
+    paddingVertical: 10, paddingHorizontal: 24,
+    backgroundColor: '#e74c3c',
+  },
+  confirmOkText: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   nukesItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1202,3 +1330,8 @@ const styles = StyleSheet.create({
 });
 
 export default App;
+          {showTutorial && uiMode === 'GAME' && (
+            <TutorialOverlay onDismiss={dismissTutorial} />
+          )}
+
+

@@ -41,6 +41,8 @@ let _langUnsubscribe = null;
 const useGameStore = create((set, get) => ({
     // State
     uiMode: 'SPLASH', // SPLASH, INTRO, MENU, FACTION, GAME
+    undoSnapshot: null, // saved before last destructive action
+    undoLabel: null,    // what action was snapshotted
     regions: {},
     factions: {},
     turn: 1,
@@ -381,7 +383,40 @@ const useGameStore = create((set, get) => ({
         }
     },
 
+
+    // ── UNDO SYSTEM ────────────────────────────────────────────────────────────
+    saveUndoSnapshot: (label) => {
+        const s = get();
+        // Only snapshot the mutable game state, not UI or settings
+        set({
+            undoSnapshot: {
+                regions: JSON.parse(JSON.stringify(s.regions)),
+                factions: JSON.parse(JSON.stringify(s.factions)),
+                trackedStats: { ...s.trackedStats },
+                gameLog: [...(s.gameLog || [])],
+            },
+            undoLabel: label,
+        });
+    },
+
+    undoLastAction: () => {
+        const s = get();
+        if (!s.undoSnapshot) return;
+        set({
+            regions: s.undoSnapshot.regions,
+            factions: s.undoSnapshot.factions,
+            trackedStats: s.undoSnapshot.trackedStats,
+            gameLog: s.undoSnapshot.gameLog,
+            undoSnapshot: null,
+            undoLabel: null,
+        });
+    },
+
+    clearUndoSnapshot: () => set({ undoSnapshot: null, undoLabel: null }),
+
     attack: (fromId, toId) => {
+        // Save undo snapshot before committing
+        get().saveUndoSnapshot('attack');
         const state = get();
         const from = state.regions[fromId];
         const to = state.regions[toId];
@@ -469,6 +504,7 @@ const useGameStore = create((set, get) => ({
     },
 
     buildUnit: (regionId, unitType) => {
+        get().saveUndoSnapshot('build');
         const state = get();
         const region = state.regions[regionId];
         const faction = state.factions[state.playerFaction];
@@ -523,6 +559,7 @@ const useGameStore = create((set, get) => ({
     },
 
     endTurn: () => {
+        get().clearUndoSnapshot(); // can't undo across turns
         try {
         const state = get();
         const newRegions = { ...state.regions };

@@ -73,16 +73,28 @@ const GameMap = () => {
     const tapGesture = Gesture.Tap().onEnd(event => {
         const lx = (event.x - translateX.value) / scale.value;
         const ly = (event.y - translateY.value) / scale.value;
-        let closest = null, minDist = 35;
-        REGIONS.forEach(r => {
-            const d = Math.hypot(lx - projectX(r.x), ly - projectY(r.y));
-            if (d < minDist) { minDist = d; closest = r.id; }
-        });
-        if (closest) {
-            // Allow tapping any visible region; hidden ones can't be selected
-            if (!visibleRegions.size || visibleRegions.has(closest)) {
-                selectRegion(closest);
+
+        // PRIMARY: SVG shape hit-test — tap directly on territory fill
+        let hit = null;
+        for (const entry of regionSkiaPaths) {
+            if (!entry.skiPath) continue;
+            if (entry.skiPath.contains(lx, ly)) {
+                hit = entry.id;
+                break;
             }
+        }
+
+        // FALLBACK: hex node proximity (for small islands / tiny regions)
+        if (!hit) {
+            let minDist = 28;
+            REGIONS.forEach(r => {
+                const d = Math.hypot(lx - projectX(r.x), ly - projectY(r.y));
+                if (d < minDist) { minDist = d; hit = r.id; }
+            });
+        }
+
+        if (hit && (!visibleRegions.size || visibleRegions.has(hit))) {
+            selectRegion(hit);
         }
     });
 
@@ -246,17 +258,53 @@ const GameMap = () => {
                             const isVisible = !visibleRegions?.size || visibleRegions.has(entry.id);
                             const gameRegion = regions[entry.id];
                             const liveFaction = gameRegion?.faction;
-                            // Fog of war: unknown regions shown in dark grey
-                            const fillColor = isVisible
-                                ? (liveFaction && FD[liveFaction] ? getFactionFill(liveFaction) : entry.fill)
-                                : 'rgba(8,12,18,0.85)';
-                            const strokeColor = isVisible
-                                ? (liveFaction && FD[liveFaction] ? FD[liveFaction].color : entry.stroke)
-                                : '#1a2030';
+                            const isSel = selectedRegionId === entry.id;
+                            const isTarget = !isSel && selectedRegionId && (() => {
+                                const from = regions[selectedRegionId];
+                                if (!from || from.faction !== playerFaction) return false;
+                                if (liveFaction === playerFaction) return false;
+                                return (ADJ[selectedRegionId] || []).includes(entry.id);
+                            })();
+
+                            if (!isVisible) {
+                                return (
+                                    <Path key={`map-${entry.id}`} path={entry.skiPath}
+                                        color="rgba(6,10,16,0.92)" />
+                                );
+                            }
+
+                            const fillColor = liveFaction && FD[liveFaction]
+                                ? getFactionFill(liveFaction) : entry.fill;
+                            const factionColor = liveFaction && FD[liveFaction]
+                                ? FD[liveFaction].color : entry.stroke;
+
                             return (
                                 <Group key={`map-${entry.id}`}>
+                                    {/* Glow halo behind selected / target territories */}
+                                    {isSel && (
+                                        <Path path={entry.skiPath}
+                                            color="rgba(80,200,255,0.22)" />
+                                    )}
+                                    {isTarget && (
+                                        <Path path={entry.skiPath}
+                                            color="rgba(255,50,50,0.18)" />
+                                    )}
+                                    {/* Territory fill */}
                                     <Path path={entry.skiPath} color={fillColor} />
-                                    <Path path={entry.skiPath} color={strokeColor} style="stroke" strokeWidth={0.4} />
+                                    {/* Border — thicker + brighter when selected */}
+                                    <Path path={entry.skiPath}
+                                        color={isSel ? 'rgba(100,220,255,0.95)'
+                                            : isTarget ? 'rgba(255,80,80,0.90)'
+                                            : factionColor}
+                                        style="stroke"
+                                        strokeWidth={isSel ? 1.2 : isTarget ? 1.0 : 0.4} />
+                                    {/* Strategic territory golden ring on border */}
+                                    {REGIONS.find(r => r.id === entry.id)?.strategic && (
+                                        <Path path={entry.skiPath}
+                                            color="rgba(255,215,0,0.25)"
+                                            style="stroke"
+                                            strokeWidth={2.5} />
+                                    )}
                                 </Group>
                             );
                         })}
@@ -304,22 +352,18 @@ const GameMap = () => {
 
                         return (
                             <Group key={r.id}>
+                                {/* Pulse ring on selected node */}
                                 {isSel && (
-                                    <>
-                                        <Circle cx={g.cx} cy={g.cy} r={g.rPulse} color="rgba(255,255,255,0.1)" />
-                                        <Path path={g.hexOut} color="rgba(80,200,255,0.9)" style="stroke" strokeWidth={2} />
-                                    </>
+                                    <Circle cx={g.cx} cy={g.cy} r={g.rPulse} color="rgba(100,220,255,0.12)" />
                                 )}
+                                {/* Target ring on attackable node */}
                                 {isTarget && (
-                                    <>
-                                        <Circle cx={g.cx} cy={g.cy} r={g.rTarget} color="rgba(255,40,40,0.1)" />
-                                        <Path path={g.hexOut} color="rgba(255,60,60,0.95)" style="stroke" strokeWidth={2} />
-                                    </>
+                                    <Circle cx={g.cx} cy={g.cy} r={g.rTarget} color="rgba(255,40,40,0.12)" />
                                 )}
-                                <Path path={g.hexOut} color="rgba(5,12,22,0.65)" />
-                                <Path path={g.hexOut} color={`${color}88`} style="stroke" strokeWidth={0.8} />
+                                <Path path={g.hexOut} color="rgba(5,12,22,0.55)" />
+                                <Path path={g.hexOut} color={isSel ? 'rgba(100,220,255,0.7)' : isTarget ? 'rgba(255,80,80,0.7)' : `${color}66`} style="stroke" strokeWidth={isSel || isTarget ? 1.2 : 0.6} />
                                 <Path path={g.hexIn} color={getFactionFill(faction)} />
-                                <Path path={g.hexIn} color={color} style="stroke" strokeWidth={1.2} />
+                                <Path path={g.hexIn} color={color} style="stroke" strokeWidth={1.0} />
                                 <Circle cx={g.cx} cy={g.cy} r={g.rDot} color={isSel ? '#ffffff' : `${color}cc`} />
                                 {r.strategic && (
                                     <Circle cx={g.cx} cy={g.cy} r={g.rStrategic} color="rgba(255,215,0,0.35)" style="stroke" strokeWidth={0.8} />
@@ -343,10 +387,12 @@ const GameMap = () => {
 
 function getFactionFill(faction) {
     switch (faction) {
-        case 'NATO': return 'rgba(26,74,122,0.82)';
-        case 'EAST': return 'rgba(107,21,21,0.82)';
+        case 'NATO':  return 'rgba(26,74,122,0.82)';
+        case 'EAST':  return 'rgba(107,21,21,0.82)';
         case 'CHINA': return 'rgba(100,80,0,0.82)';
-        default: return 'rgba(20,35,25,0.72)';
+        case 'INDIA': return 'rgba(30,100,60,0.82)';
+        case 'LATAM': return 'rgba(120,50,120,0.82)';
+        default:      return 'rgba(20,35,25,0.72)';
     }
 }
 
