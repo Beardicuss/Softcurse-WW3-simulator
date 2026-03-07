@@ -17,7 +17,11 @@ const DiplomacyPanel = ({ onClose }) => {
         ]).start();
     }, []);
     const t = useTranslation();
-    const { factions, playerFaction, regions } = useGameStore();
+    const {
+        factions, playerFaction, regions,
+        offerPeace, offerNonAggression, proposeAlliance, backstabAlly,
+        getDiplomacyStatus, diplomacy,
+    } = useGameStore();
     const factionData = factions[playerFaction];
 
     // Abstracting store actions for diplomacy
@@ -87,7 +91,7 @@ const DiplomacyPanel = ({ onClose }) => {
 
     if (!factionData) return null;
 
-    const enemies = ['EAST', 'CHINA'].filter(f => f !== playerFaction);
+    const enemies = ['NATO', 'EAST', 'CHINA', 'INDIA', 'LATAM'].filter(f => f !== playerFaction);
 
     return (
         <Animated.View style={[styles.panel, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -182,6 +186,109 @@ const DiplomacyPanel = ({ onClose }) => {
                                 <Text style={styles.btnText}>DESTABILIZE {FD[e].short}</Text>
                             </TouchableOpacity>
                         ))}
+                    </View>
+                </View>
+
+
+                {/* ── PEACE & TREATIES ─────────────────────────────────────── */}
+                <View style={[styles.actionCard, { borderColor: '#3a9eff' }]}>
+                    <View style={styles.cardHeader}>
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>🕊</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.actionTitle, { color: '#3a9eff' }]}>PEACE TREATIES</Text>
+                            <Text style={styles.actionDesc}>Offer peace (-$300). AI will accept if weakened. Halts all direct attacks for 8 turns.</Text>
+                        </View>
+                    </View>
+                    <View style={styles.targetRow}>
+                        {enemies.map(e => {
+                            const dipStatus = getDiplomacyStatus ? getDiplomacyStatus(e) : {};
+                            const hasPeace = dipStatus.hasPeace;
+                            const pending  = dipStatus.pendingOffer?.type === 'peace';
+                            return (
+                                <TouchableOpacity
+                                    key={e}
+                                    style={[styles.btnTarget, { borderColor: '#3a9eff' },
+                                        (hasPeace || pending || factionData.funds < 300) && styles.btnDisabled]}
+                                    disabled={hasPeace || pending || factionData.funds < 300}
+                                    onPress={() => offerPeace && offerPeace(e)}
+                                >
+                                    <Text style={styles.btnText}>
+                                        {hasPeace ? `☮ PEACE (${dipStatus.peaceTurnsLeft}t)` :
+                                         pending   ? '⏳ PENDING...' :
+                                         `🕊 ${FD[e].short} $300`}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* ── NON-AGGRESSION PACTS ──────────────────────────────────── */}
+                <View style={[styles.actionCard, { borderColor: '#f39c12' }]}>
+                    <View style={styles.cardHeader}>
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>📜</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.actionTitle, { color: '#f39c12' }]}>NON-AGGRESSION PACT</Text>
+                            <Text style={styles.actionDesc}>-$150. AI will not initiate attacks against you for the duration. Permanent until broken.</Text>
+                        </View>
+                    </View>
+                    <View style={styles.targetRow}>
+                        {enemies.map(e => {
+                            const dipStatus = getDiplomacyStatus ? getDiplomacyStatus(e) : {};
+                            const hasNAP = dipStatus.hasNonAgg;
+                            const pending = dipStatus.pendingOffer?.type === 'nonAggression';
+                            return (
+                                <TouchableOpacity
+                                    key={e}
+                                    style={[styles.btnTarget, { borderColor: '#f39c12' },
+                                        (hasNAP || pending || factionData.funds < 150) && styles.btnDisabled]}
+                                    disabled={hasNAP || pending || factionData.funds < 150}
+                                    onPress={() => offerNonAggression && offerNonAggression(e)}
+                                >
+                                    <Text style={styles.btnText}>
+                                        {hasNAP  ? `📜 ACTIVE` :
+                                         pending ? '⏳ PENDING...' :
+                                         `📜 ${FD[e].short} $150`}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* ── ALLIANCES ─────────────────────────────────────────────── */}
+                <View style={[styles.actionCard, { borderColor: '#2ecc71' }]}>
+                    <View style={styles.cardHeader}>
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>🤜</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.actionTitle, { color: '#2ecc71' }]}>ALLIANCE</Text>
+                            <Text style={styles.actionDesc}>-$500. Full military alliance. Shared fog of war vision. Attack your ally to backstab — stability -20 but gains freedom of action.</Text>
+                        </View>
+                    </View>
+                    <View style={styles.targetRow}>
+                        {enemies.map(e => {
+                            const dipStatus = getDiplomacyStatus ? getDiplomacyStatus(e) : {};
+                            const isAlly = dipStatus.isAlly;
+                            const pending = dipStatus.pendingOffer?.type === 'alliance';
+                            return (
+                                <TouchableOpacity
+                                    key={e}
+                                    style={[styles.btnTarget,
+                                        { borderColor: isAlly ? '#e74c3c' : '#2ecc71' },
+                                        (!isAlly && (pending || factionData.funds < 500)) && styles.btnDisabled]}
+                                    disabled={!isAlly && (pending || factionData.funds < 500)}
+                                    onPress={() => isAlly
+                                        ? backstabAlly && backstabAlly(e)
+                                        : proposeAlliance && proposeAlliance(e)}
+                                >
+                                    <Text style={styles.btnText}>
+                                        {isAlly  ? `💀 BACKSTAB ${FD[e].short}` :
+                                         pending ? '⏳ PENDING...' :
+                                         `🤜 ${FD[e].short} $500`}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
                 </View>
 

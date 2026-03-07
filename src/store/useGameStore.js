@@ -9,9 +9,9 @@ import {
     calculateSupply,
     processStability
 } from '../logic/gameLogic';
-import { runNightmareAI, recordAILoss } from '../logic/aiLogic';
+import { runNightmareAI, recordAILoss, findHegemon } from '../logic/aiLogic';
 import { rollWeather, getWeather, COASTAL_REGIONS } from '../logic/gameLogic';
-import { ADJ, FD, REGIONS } from '../data/mapData';
+import { ADJ, FD, REGIONS, getTerrain } from '../data/mapData';
 import { TECH_BY_ID, TECH_NODES, isExcluded, computeTechModifiers } from '../data/techTree';
 import { processWorldEvents } from '../logic/eventSystem';
 import { evaluateMissions, applyMissionReward, CAMPAIGN_MISSIONS } from '../logic/campaignMissions';
@@ -58,6 +58,16 @@ const useGameStore = create((set, get) => ({
     nukeUsedThisTurn: false,
     // Nightmare AI persistent memory — one object per AI faction
     aiMemory: { EAST: {}, CHINA: {}, INDIA: {}, LATAM: {} },
+    // Diplomacy state
+    diplomacy: {
+        // peaceTreaties: { 'NATO-EAST': { turnsLeft: 5 }, ... }
+        // nonAggressionPacts: Set-like { 'NATO-CHINA': true }
+        // alliances: { 'NATO-LATAM': { sharedVision: true } }
+        peaceTreaties: {},
+        nonAggressionPacts: {},
+        alliances: {},
+        pendingOffers: [],   // [{ from, to, type, turnsLeft }]
+    },
 
     // Campaign Mission System
     missionProgress: {},       // { missionId: { status, objectiveProgress, activatedTurn, completedTurn } }
@@ -417,6 +427,127 @@ const useGameStore = create((set, get) => ({
         });
     },
 
+
+    // ── DIPLOMACY ACTIONS ──────────────────────────────────────────────────────
+    offerPeace: (targetFaction) => {
+        const state = get();
+        const pf = state.playerFaction;
+        const key = [pf, targetFaction].sort().join('-');
+        const cost = 300; // peace costs funds
+        const fac = state.factions[pf];
+        if (!fac || fac.funds < cost) return { success: false, reason: 'funds' };
+
+        set(state2 => ({
+            diplomacy: {
+                ...state2.diplomacy,
+                pendingOffers: [
+                    ...(state2.diplomacy.pendingOffers || []),
+                    { from: pf, to: targetFaction, type: 'peace', turnsLeft: 3 }
+                ],
+            },
+            factions: {
+                ...state2.factions,
+                [pf]: { ...state2.factions[pf], funds: state2.factions[pf].funds - cost },
+            },
+            gameLog: [`🤝 ${pf} offers peace to ${targetFaction} — awaiting response...`, ...state2.gameLog].slice(0, 12),
+        }));
+        return { success: true };
+    },
+
+    offerNonAggression: (targetFaction) => {
+        const state = get();
+        const pf = state.playerFaction;
+        const cost = 150;
+        const fac = state.factions[pf];
+        if (!fac || fac.funds < cost) return { success: false, reason: 'funds' };
+
+        set(state2 => ({
+            diplomacy: {
+                ...state2.diplomacy,
+                pendingOffers: [
+                    ...(state2.diplomacy.pendingOffers || []),
+                    { from: pf, to: targetFaction, type: 'nonAggression', turnsLeft: 3 }
+                ],
+            },
+            factions: {
+                ...state2.factions,
+                [pf]: { ...state2.factions[pf], funds: state2.factions[pf].funds - cost },
+            },
+            gameLog: [`📜 ${pf} proposes non-aggression pact with ${targetFaction}`, ...state2.gameLog].slice(0, 12),
+        }));
+        return { success: true };
+    },
+
+    proposeAlliance: (targetFaction) => {
+        const state = get();
+        const pf = state.playerFaction;
+        const cost = 500;
+        const fac = state.factions[pf];
+        if (!fac || fac.funds < cost) return { success: false, reason: 'funds' };
+
+        set(state2 => ({
+            diplomacy: {
+                ...state2.diplomacy,
+                pendingOffers: [
+                    ...(state2.diplomacy.pendingOffers || []),
+                    { from: pf, to: targetFaction, type: 'alliance', turnsLeft: 3 }
+                ],
+            },
+            factions: {
+                ...state2.factions,
+                [pf]: { ...state2.factions[pf], funds: state2.factions[pf].funds - cost },
+            },
+            gameLog: [`🤜 ${pf} proposes alliance with ${targetFaction}`, ...state2.gameLog].slice(0, 12),
+        }));
+        return { success: true };
+    },
+
+    backstabAlly: (targetFaction) => {
+        // Attack an ally — breaks the alliance, massive stability hit, global condemnation
+        const state = get();
+        const pf = state.playerFaction;
+        const key = [pf, targetFaction].sort().join('-');
+        const isAlly = state.diplomacy?.alliances?.[key];
+        if (!isAlly) return { success: false, reason: 'notAlly' };
+
+        set(state2 => {
+            const newAlliances = { ...state2.diplomacy.alliances };
+            delete newAlliances[key];
+            return {
+                diplomacy: { ...state2.diplomacy, alliances: newAlliances },
+                factions: {
+                    ...state2.factions,
+                    [pf]: {
+                        ...state2.factions[pf],
+                        stability: Math.max(0, (state2.factions[pf].stability || 100) - 20),
+                    },
+                },
+                gameLog: [
+                    `💀 BETRAYAL: ${pf} has backstabbed ${targetFaction}! Stability -20. World condemns the treachery.`,
+                    ...state2.gameLog
+                ].slice(0, 12),
+            };
+        });
+        return { success: true };
+    },
+
+    getDiplomacyStatus: (targetFaction) => {
+        const state = get();
+        const pf = state.playerFaction;
+        const key = [pf, targetFaction].sort().join('-');
+        const dip = state.diplomacy || {};
+        return {
+            hasPeace:       !!(dip.peaceTreaties?.[key]),
+            hasNonAgg:      !!(dip.nonAggressionPacts?.[key]),
+            isAlly:         !!(dip.alliances?.[key]),
+            pendingOffer:   (dip.pendingOffers || []).find(o =>
+                (o.from === pf && o.to === targetFaction) ||
+                (o.to === pf && o.from === targetFaction)
+            ),
+            peaceTurnsLeft: dip.peaceTreaties?.[key]?.turnsLeft || 0,
+        };
+    },
+
     clearUndoSnapshot: () => set({ undoSnapshot: null, undoLabel: null }),
 
     attack: (fromId, toId) => {
@@ -444,7 +575,7 @@ const useGameStore = create((set, get) => ({
             FD[to.faction]?.def ?? 0.85,
             from.stability ?? 100,
             to.stability ?? 100,
-            atkMods, defMods, state.weather
+            atkMods, defMods, state.weather, toId
         );
 
         const newRegions = { ...state.regions };
@@ -687,10 +818,14 @@ const useGameStore = create((set, get) => ({
             if (isIsolated && newRegions[rid].faction !== 'NEUTRAL') {
                 const r = newRegions[rid];
                 const startInf = r.infantry || 0;
+                // Tundra/desert/jungle supply is harder → faster attrition when cut off
+                const terrain = getTerrain(rid);
+                const attritionRate = terrain.supplyMod < 0.8 ? 0.15 : 0.10;
 
-                if (r.infantry > 0) r.infantry -= Math.max(1, Math.floor(r.infantry * 0.1));
-                if (r.armor > 0) r.armor -= Math.max(1, Math.floor(r.armor * 0.1));
-                if (r.air > 0) r.air -= Math.max(1, Math.floor(r.air * 0.1));
+                if (r.infantry > 0) r.infantry -= Math.max(1, Math.floor(r.infantry * attritionRate));
+                if (r.armor > 0) r.armor -= Math.max(1, Math.floor(r.armor * attritionRate));
+                if (r.air > 0) r.air -= Math.max(1, Math.floor(r.air * attritionRate));
+                if (r.bomber > 0) r.bomber -= Math.max(1, Math.floor(r.bomber * attritionRate));
 
                 if (startInf > 0 && r.faction === state.playerFaction) {
                     attritionOccurred = true;
@@ -802,6 +937,62 @@ const useGameStore = create((set, get) => ({
             }
         }
 
+
+        // 4. DIPLOMACY PHASE — process pending offers + decay treaties
+        const newDiplomacy = JSON.parse(JSON.stringify(state.diplomacy || {
+            peaceTreaties: {}, nonAggressionPacts: {}, alliances: {}, pendingOffers: [],
+        }));
+
+        // Process AI responses to pending offers
+        (newDiplomacy.pendingOffers || []).forEach(offer => {
+            offer.turnsLeft = (offer.turnsLeft || 1) - 1;
+
+            if (offer.turnsLeft <= 0) {
+                // AI decides: accept based on relative power + stability
+                const aiKey  = offer.from === state.playerFaction ? offer.to : offer.from;
+                const aiStab = newFactions[aiKey]?.stability || 100;
+                const aiOwned = Object.values(newRegions).filter(r => r.faction === aiKey).length;
+                const playerOwned = Object.values(newRegions).filter(r => r.faction === state.playerFaction).length;
+
+                // More likely to accept peace/non-aggression if weaker or unstable
+                const acceptProb =
+                    offer.type === 'peace'        ? (aiStab < 50 || aiOwned < playerOwned ? 0.75 : 0.35) :
+                    offer.type === 'nonAggression' ? (aiStab < 60 ? 0.65 : 0.40) :
+                    offer.type === 'alliance'      ? (aiOwned < playerOwned * 0.7 ? 0.55 : 0.20) : 0;
+
+                const key = [offer.from, offer.to].sort().join('-');
+                if (Math.random() < acceptProb) {
+                    if (offer.type === 'peace') {
+                        newDiplomacy.peaceTreaties[key] = { turnsLeft: 8 };
+                        newLog.unshift(`✅ ${aiKey} ACCEPTS peace treaty with ${state.playerFaction}! (8 turns)`);
+                    } else if (offer.type === 'nonAggression') {
+                        newDiplomacy.nonAggressionPacts[key] = true;
+                        newLog.unshift(`✅ ${aiKey} ACCEPTS non-aggression pact with ${state.playerFaction}`);
+                    } else if (offer.type === 'alliance') {
+                        newDiplomacy.alliances[key] = { sharedVision: true };
+                        newLog.unshift(`🤜 ${aiKey} ACCEPTS alliance with ${state.playerFaction}!`);
+                    }
+                } else {
+                    newLog.unshift(`❌ ${aiKey} REJECTS ${offer.type} offer from ${state.playerFaction}`);
+                }
+            }
+        });
+
+        // Remove expired offers
+        newDiplomacy.pendingOffers = (newDiplomacy.pendingOffers || []).filter(o => o.turnsLeft > 0);
+
+        // Decay peace treaties
+        Object.keys(newDiplomacy.peaceTreaties || {}).forEach(key => {
+            newDiplomacy.peaceTreaties[key].turnsLeft -= 1;
+            if (newDiplomacy.peaceTreaties[key].turnsLeft <= 0) {
+                delete newDiplomacy.peaceTreaties[key];
+                newLog.unshift(`⚠️ Peace treaty expired — hostilities may resume`);
+            }
+        });
+
+        // Non-aggression pacts: AI respects them (skip attacks on pact partners)
+        // (enforced in runNightmareAI below by passing pact data)
+
         // 3. NIGHTMARE AI PHASE
         const aiFactions = ['EAST', 'CHINA', 'INDIA', 'LATAM'].filter(f => f !== state.playerFaction);
         const newAIMemory = { ...state.aiMemory };
@@ -810,7 +1001,7 @@ const useGameStore = create((set, get) => ({
             const memoryIn = newAIMemory[aiKey] || {};
 
             const { moves, reinforcements, buildOrders, updatedMemory } =
-                runNightmareAI(aiKey, newRegions, newFactions, state.playerFaction, memoryIn);
+                runNightmareAI(aiKey, newRegions, newFactions, state.playerFaction, memoryIn, newAIMemory, state.turn || 0);
 
             // 3a. Execute combat moves
             moves.forEach(m => {
@@ -829,7 +1020,7 @@ const useGameStore = create((set, get) => ({
                     FD[aiKey].atk, defStat,
                     from.stability ?? 100,
                     to.stability   ?? 100,
-                    aiAtkMods, aiDefMods, newWeather
+                    aiAtkMods, aiDefMods, newWeather, m.to
                 );
 
                 if (win) {
@@ -889,9 +1080,11 @@ const useGameStore = create((set, get) => ({
                 if (!reg || reg.faction !== aiKey || !fac) return;
 
                 const costs = {
-                    infantry: { funds: 50,  supplies: 20  },
-                    armor:    { funds: 150, supplies: 50  },
-                    air:      { funds: 300, supplies: 100 },
+                    infantry:  { funds: 50,  supplies: 20  },
+                    armor:     { funds: 150, supplies: 50  },
+                    air:       { funds: 300, supplies: 100 },
+                    bomber:    { funds: 400, supplies: 150, oil: 80 },
+                    guerrilla: { funds: 100, supplies: 30  },
                 };
                 const c = costs[order.unitType];
                 if (!c) return;
@@ -1059,6 +1252,7 @@ const useGameStore = create((set, get) => ({
             date: newDate.getTime(),
             nukeUsedThisTurn: false,
             aiMemory: newAIMemory,
+            diplomacy: newDiplomacy,
             actPhase: newActPhase,
             actEvents: newActEvents,
             firedEvents: newFiredEvents,

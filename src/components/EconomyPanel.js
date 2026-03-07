@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from '
 import { Shield, Rocket, Plane, Zap, Activity, HardHat, Anchor } from 'lucide-react-native';
 import useGameStore from '../store/useGameStore';
 import { COASTAL_REGIONS } from '../logic/gameLogic';
+import { getTerrain } from '../data/mapData';
 import { useTranslation } from '../i18n/i18n';
 
 const { height } = Dimensions.get('window');
@@ -24,7 +25,7 @@ const EconomyPanel = ({ onClose }) => {
 
     if (!factionData) return null;
 
-    const renderUnitCard = (type, icon, name, costF, costS, costI, atk, def) => {
+    const renderUnitCard = (type, icon, name, costF, costS, costI, atk, def, desc) => {
         const canAfford = factionData.funds >= costF && factionData.supplies >= costS;
         const validRegion = selectedRegion && selectedRegion.faction === playerFaction;
         const regionHasInd = validRegion && selectedRegion.industry >= costI;
@@ -53,6 +54,7 @@ const EconomyPanel = ({ onClose }) => {
                     <Text style={styles.statText}>DEF: {def}</Text>
                 </View>
 
+                {desc && <Text style={{ color: '#556', fontSize: 9, marginTop: 4, fontStyle: 'italic' }}>{desc}</Text>}
                 {!validRegion && <Text style={styles.errorText}>{t('economy.selectRegion')}</Text>}
                 {validRegion && !regionHasInd && <Text style={styles.errorText}>Requires {costI} Industry</Text>}
             </TouchableOpacity>
@@ -105,6 +107,38 @@ const EconomyPanel = ({ onClose }) => {
             {selectedRegion && !COASTAL_REGIONS.has(selectedRegionId) && selectedRegion.faction === playerFaction && (
                 <Text style={styles.navalLocked}>🌊 Naval units require a coastal region</Text>
             )}
+
+            {/* TIER 2 UNITS */}
+            <Text style={styles.navalHeader}>⚔ TIER 2 UNITS</Text>
+            <View style={styles.unitsContainer}>
+                {renderUnitCard('bomber',
+                    <Text style={{ fontSize: 18 }}>✈💣</Text>,
+                    'STRATEGIC BOMBER',
+                    400, 150, 30, 8, 0,
+                    'Bypasses terrain defense. Destroys infrastructure. Requires 30 Industry.'
+                )}
+                {renderUnitCard('guerrilla',
+                    <Text style={{ fontSize: 18 }}>🪖</Text>,
+                    'GUERRILLA FORCE',
+                    100, 30, 0, 2, 3,
+                    '2× defense in forest/mountain/jungle/tundra. Cheap insurgency unit.'
+                )}
+            </View>
+
+            {/* TERRAIN INFO */}
+            {selectedRegion && selectedRegion.faction === playerFaction && (() => {
+                const terrain = getTerrain(selectedRegionId);
+                return (
+                    <View style={{ marginTop: 12, padding: 8, backgroundColor: '#0a1520', borderRadius: 6, borderWidth: 1, borderColor: '#1e3a4a' }}>
+                        <Text style={{ color: '#7fb3cc', fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>
+                            {terrain.emoji} TERRAIN: {terrain.label.toUpperCase()}
+                        </Text>
+                        <Text style={{ color: '#556677', fontSize: 9, marginTop: 3 }}>
+                            ATK ×{terrain.atkMod.toFixed(2)}  DEF ×{terrain.defMod.toFixed(2)}  SUPPLY ×{terrain.supplyMod.toFixed(2)}
+                        </Text>
+                    </View>
+                );
+            })()}
         </Animated.View>
     );
 };

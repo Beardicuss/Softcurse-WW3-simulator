@@ -7,7 +7,7 @@
  *  3. MEMORY LAYER     — tracks player build profile, queues counters
  */
 
-import { REGIONS, ADJ, FD } from '../data/mapData';
+import { REGIONS, ADJ, FD, getTerrain } from '../data/mapData';
 import { UNIT_STATS, calculatePower, applyCasualties } from './gameLogic';
 import { computeTechModifiers } from '../data/techTree';
 
@@ -46,6 +46,88 @@ function exposureRisk(fromId, regions, aiKey) {
         const r = regions[n];
         return r && r.faction !== aiKey && r.faction !== 'NEUTRAL';
     }).length;
+}
+
+
+// ─── COALITION & DIPLOMACY AI ─────────────────────────────────────────────────
+// AI factions will form temporary coalitions against the dominant power
+// Returns the faction with the most territories (the "hegemon")
+export function findHegemon(regions, factions) {
+    const counts = {};
+    Object.values(regions).forEach(r => {
+        if (r.faction && r.faction !== 'NEUTRAL') {
+            counts[r.faction] = (counts[r.faction] || 0) + 1;
+        }
+    });
+    let best = null, bestCount = 0;
+    Object.entries(counts).forEach(([fk, ct]) => {
+        if (ct > bestCount) { bestCount = ct; best = fk; }
+    });
+    return best;
+}
+
+// AI doctrine enum — each AI picks a grand strategy every ~10 turns
+export const AI_DOCTRINES = {
+    BLITZ:       'blitz',       // maximum aggression, ignore defense
+    FORTRESS:    'fortress',    // build up, expand slowly, defend hard
+    ECONOMIC:    'economic',    // prioritize high-economy regions, save funds
+    COALITION:   'coalition',   // coordinate attacks with other AI vs hegemon
+    ADAPTIVE:    'adaptive',    // mirror player strategy and counter it
+};
+
+export function pickAIDoctrine(aiKey, memory, regions, factions, playerFaction, turn) {
+    const owned = Object.keys(regions).filter(r => regions[r].faction === aiKey);
+    const fac = factions[aiKey] || {};
+    const stability = fac.stability || 100;
+    const funds     = fac.funds     || 0;
+    const hegemon   = findHegemon(regions, factions);
+
+    // Force fortress if stability is critically low
+    if (stability < 35) return AI_DOCTRINES.FORTRESS;
+
+    // Coalition if player is the hegemon and we're not winning
+    if (hegemon === playerFaction && owned.length < 8) return AI_DOCTRINES.COALITION;
+
+    // Blitz in early game or if we have overwhelming force
+    if (turn < 8 || owned.length > 14) return AI_DOCTRINES.BLITZ;
+
+    // Economic if we're cash-strapped
+    if (funds < 200) return AI_DOCTRINES.ECONOMIC;
+
+    // Adaptive if memory shows strong player doctrine
+    if (memory?.playerDoctrine && memory.playerDoctrine !== 'balanced') return AI_DOCTRINES.ADAPTIVE;
+
+    // Default: rotate based on faction personality
+    const personality = {
+        EAST:  AI_DOCTRINES.FORTRESS,
+        CHINA: AI_DOCTRINES.BLITZ,
+        INDIA: AI_DOCTRINES.ECONOMIC,
+        LATAM: AI_DOCTRINES.COALITION,
+    };
+    return personality[aiKey] || AI_DOCTRINES.ADAPTIVE;
+}
+
+// Coalition targeting: if two AI factions are both in COALITION doctrine,
+// they preferentially attack the same target (coordinated assault bonus)
+export function getCoalitionTarget(aiKey, allMemory, regions, playerFaction) {
+    // Find the most-contested player region (attacked by multiple AIs last turn)
+    const playerRegions = Object.entries(regions)
+        .filter(([, r]) => r.faction === playerFaction)
+        .map(([id]) => id);
+    if (playerRegions.length === 0) return null;
+
+    // Pick highest-value player region adjacent to any AI territory
+    let best = null, bestScore = -1;
+    playerRegions.forEach(rid => {
+        const r = regions[rid];
+        const adjacentAI = (ADJ[rid] || []).some(n =>
+            regions[n]?.faction !== playerFaction && regions[n]?.faction !== 'NEUTRAL'
+        );
+        if (!adjacentAI) return;
+        const score = (r.economy || 0) + (r.industry || 0) * 2 + (r.strategic ? 30 : 0);
+        if (score > bestScore) { bestScore = score; best = rid; }
+    });
+    return best;
 }
 
 // ─── 1. STRATEGIC LAYER ───────────────────────────────────────────────────────
@@ -115,6 +197,17 @@ export function strategicScore(fromId, toId, regions, aiKey, playerFaction, aiMe
 
     // ── Memory layer: prioritise targets that counter player doctrine ──────
     if (aiMemory?.playerDoctrineTarget === toId) score += 20;
+
+    // ── Terrain: AI values low-def-bonus targets (prefers plains/desert) ───
+    const terrain = getTerrain(toId);
+    if (terrain.defMod < 1.0) score += 15;  // easy terrain — push harder
+    if (terrain.defMod > 1.2) score -= 10;  // hard terrain — more cautious
+
+    // ── Doctrine modifier ───────────────────────────────────────────────────
+    const doctrine = aiMemory?.doctrine;
+    if (doctrine === 'blitz')    score *= 1.15;
+    if (doctrine === 'economic') score += (to.economy || 0) * 0.5;
+    if (doctrine === 'coalition' && aiMemory?.coalitionTarget === toId) score += 40;
 
     return score;
 }
@@ -316,8 +409,21 @@ export function recordAILoss(aiKey, toId, memory = {}) {
  * Full Nightmare AI turn for one faction.
  * Returns { moves, buildOrders, updatedMemory }
  */
-export function runNightmareAI(aiKey, regions, factions, playerFaction, aiMemory = {}) {
+export function runNightmareAI(aiKey, regions, factions, playerFaction, aiMemory = {}, allAIMemory = {}, turn = 0) {
     const myIds = Object.keys(regions).filter(id => regions[id].faction === aiKey);
+
+    // ── Determine this turn's doctrine ─────────────────────────────────────
+    const doctrine = pickAIDoctrine(aiKey, aiMemory, regions, factions, playerFaction, turn);
+    const coalitionTarget = doctrine === 'coalition'
+        ? getCoalitionTarget(aiKey, allAIMemory, regions, playerFaction)
+        : null;
+
+    // Inject doctrine into memory so strategicScore can read it
+    aiMemory = { ...aiMemory, doctrine, coalitionTarget };
+
+    // Adaptive difficulty: scale maxMoves by how well the AI is doing
+    const ownedCount = myIds.length;
+
     const candidateMoves = [];
 
     myIds.forEach(fromId => {
@@ -339,16 +445,29 @@ export function runNightmareAI(aiKey, regions, factions, playerFaction, aiMemory
         });
     });
 
+    // Fortress doctrine: filter out marginal attacks
+    const filteredMoves = doctrine === 'fortress'
+        ? candidateMoves.filter(m => {
+              const atkP = calculatePower(regions[m.from], true);
+              const defP = calculatePower(regions[m.to], false);
+              return atkP / Math.max(1, defP) >= 1.4;
+          })
+        : candidateMoves;
+
     // Sort by score descending
-    candidateMoves.sort((a, b) => b.score - a.score);
+    filteredMoves.sort((a, b) => b.score - a.score);
 
     // Select moves — each region can only attack once, limit total moves per faction
-    const maxMoves = aiKey === 'CHINA' ? 6 : aiKey === 'EAST' ? 5 : 4;
+    // Adaptive: stronger factions get more moves; doctrine also affects aggression
+    const baseMoves = aiKey === 'CHINA' ? 6 : aiKey === 'EAST' ? 5 : aiKey === 'INDIA' ? 5 : 4;
+    const doctrineBonus = doctrine === 'blitz' ? 2 : doctrine === 'fortress' ? -1 : 0;
+    const sizeBonus = ownedCount > 15 ? 2 : ownedCount > 10 ? 1 : 0;
+    const maxMoves = Math.max(1, baseMoves + doctrineBonus + sizeBonus);
     const usedFrom = new Set();
     const usedTo   = new Set();
     const moves    = [];
 
-    for (const m of candidateMoves) {
+    for (const m of filteredMoves) {
         if (moves.length >= maxMoves) break;
         if (usedFrom.has(m.from)) continue;
         if (usedTo.has(m.to)) continue; // don't pile 2 stacks on same target
@@ -391,6 +510,8 @@ export function runNightmareAI(aiKey, regions, factions, playerFaction, aiMemory
 
     // Update memory
     const updatedMemory = updateAIMemory(aiKey, aiMemory, regions, factions, playerFaction);
+    updatedMemory.doctrine = doctrine;
+    updatedMemory.coalitionTarget = coalitionTarget;
 
     return { moves, reinforcements, buildOrders, updatedMemory };
 }

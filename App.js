@@ -24,7 +24,7 @@ import { View as RNView } from 'react-native';
 const ReAnimatedView = createAnimatedComponent(RNView);
 
 import useGameStore from './src/store/useGameStore';
-import { FD } from './src/data/mapData';
+import { FD, getTerrain } from './src/data/mapData';
 import { computeTechModifiers } from './src/data/techTree';
 import GameMap from './src/components/GameMap';
 import IntroScreen from './src/components/IntroScreen';
@@ -455,6 +455,7 @@ const App = () => {
                     <Text style={[styles.intelFactionName, { color: FD[selectedRegion.faction]?.color || '#aaa' }]}>
                       {FD[selectedRegion.faction]?.short || 'NEU'}
                     </Text>
+                    {(() => { const ter = getTerrain(selectedRegionId); return <Text style={{ color: '#4a7a9b', fontSize: 8, fontWeight: '700', letterSpacing: 1, marginLeft: 6 }}>{ter.emoji} {ter.label.toUpperCase()}</Text>; })()}
                     {selectedRegion.isolated && <Text style={styles.intelWarning}> ⚠ISO</Text>}
                   </View>
                   <View style={styles.intelDivider} />
