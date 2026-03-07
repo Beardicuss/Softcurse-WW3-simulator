@@ -3,7 +3,7 @@ import { StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
     Canvas, Circle, Path, Group, Rect, vec,
-    LinearGradient, Skia
+    LinearGradient, Skia, Paint,
 } from '@shopify/react-native-skia';
 import Animated, { useSharedValue, useDerivedValue } from 'react-native-reanimated';
 import { REGIONS, ADJ, FD } from '../data/mapData';
@@ -268,8 +268,13 @@ const GameMap = () => {
 
                             if (!isVisible) {
                                 return (
-                                    <Path key={`map-${entry.id}`} path={entry.skiPath}
-                                        color="rgba(6,10,16,0.92)" />
+                                    <Group key={`map-${entry.id}`}>
+                                        {/* Dark fog fill */}
+                                        <Path path={entry.skiPath} color="rgba(4,8,14,0.94)" />
+                                        {/* Subtle fog border */}
+                                        <Path path={entry.skiPath} color="rgba(20,35,55,0.6)"
+                                            style="stroke" strokeWidth={0.5} />
+                                    </Group>
                                 );
                             }
 
@@ -339,13 +344,28 @@ const GameMap = () => {
                             }
                         }
 
-                        // FOG OF WAR: render a minimal dark hex for hidden regions
+                        // FOG OF WAR: dark hex + question mark indicator
                         if (!isVisible) {
+                            const qr = r.r * 1.8;
                             return (
                                 <Group key={r.id}>
-                                    <Path path={g.hexOut} color="rgba(4,8,14,0.80)" />
-                                    <Path path={g.hexOut} color="#0d1a26" style="stroke" strokeWidth={0.5} />
-                                    <Path path={g.hexIn}  color="rgba(6,10,18,0.70)" />
+                                    {/* Hex shell */}
+                                    <Path path={g.hexOut} color="rgba(4,8,14,0.88)" />
+                                    <Path path={g.hexOut} color="rgba(15,28,45,0.7)"
+                                        style="stroke" strokeWidth={0.6} />
+                                    <Path path={g.hexIn} color="rgba(6,10,18,0.80)" />
+                                    {/* ? indicator — arc (top of ?) */}
+                                    <Circle cx={g.cx} cy={g.cy - qr * 0.15}
+                                        r={qr * 0.55}
+                                        color="rgba(30,55,80,0.0)" />
+                                    <Circle cx={g.cx} cy={g.cy - qr * 0.15}
+                                        r={qr * 0.55}
+                                        color="rgba(40,80,110,0.55)"
+                                        style="stroke" strokeWidth={qr * 0.18} />
+                                    {/* ? dot (bottom of ?) */}
+                                    <Circle cx={g.cx} cy={g.cy + qr * 0.55}
+                                        r={qr * 0.14}
+                                        color="rgba(40,80,110,0.55)" />
                                 </Group>
                             );
                         }

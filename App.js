@@ -15,6 +15,13 @@ import {
   Compass
 } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated2, {
+  useSharedValue, useAnimatedStyle,
+  withSequence, withTiming,
+  createAnimatedComponent,
+} from 'react-native-reanimated';
+import { View as RNView } from 'react-native';
+const ReAnimatedView = createAnimatedComponent(RNView);
 
 import useGameStore from './src/store/useGameStore';
 import { FD } from './src/data/mapData';
@@ -40,6 +47,7 @@ import LeaderboardScreen from './src/components/LeaderboardScreen';
 import TradePanel from './src/components/TradePanel';
 import TutorialOverlay from './src/components/TutorialOverlay';
 import Tooltip from './src/components/Tooltip';
+import AnimatedNumber from './src/components/AnimatedNumber';
 
 const { width, height } = Dimensions.get('window');
 
@@ -48,16 +56,25 @@ const App = () => {
     uiMode, playerFaction, factions, regions,
     turn, date, gameLog, selectedRegionId, startGame, checkHasSave,
     nukeUsedThisTurn, launchNuke, orbitalStrike, blackoutRegion, aiMemory,
-    updateSettings, undoLastAction, undoLabel,
+    updateSettings, undoLastAction, undoLabel, settings,
     isGameOver, gameOverReason, actPhase, actEvents, activeEventLog,
     weather, spyReveal, spySabotage, spyAssassinate,
     missionProgress, newlyCompletedMissions,
   } = useGameStore();
+  const undoLabelLive = useGameStore(s => s.undoLabel);
+
+  // ── Screen shake (Reanimated — UI thread) ────────────────────────────────
+  const shakeX = useSharedValue(0);
+  const shakeY = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }, { translateY: shakeY.value }],
+  }));
 
   const t = useTranslation();
   const audio = useAudio();
   const [showEconomy, setShowEconomy] = React.useState(false);
   const [combatEffects, setCombatEffects] = React.useState([]);
+
 
   // Fire a combat visual effect
   // Mission completion toast
@@ -71,11 +88,34 @@ const App = () => {
     }
   }, [newlyCompletedMissions]);
 
+
+
+  const triggerShake = React.useCallback((intensity = 6) => {
+    shakeX.value = withSequence(
+      withTiming( intensity,       { duration: 40 }),
+      withTiming(-intensity,       { duration: 40 }),
+      withTiming( intensity * 0.6, { duration: 35 }),
+      withTiming(-intensity * 0.6, { duration: 35 }),
+      withTiming(0,                { duration: 30 })
+    );
+    shakeY.value = withSequence(
+      withTiming(-intensity * 0.5, { duration: 40 }),
+      withTiming( intensity * 0.5, { duration: 40 }),
+      withTiming(-intensity * 0.3, { duration: 35 }),
+      withTiming(0,                { duration: 35 })
+    );
+  }, []);
+
   const fireEffect = React.useCallback((type, regionId) => {
     const id = Date.now() + Math.random();
+    const duration = type === 'nuke' ? 1400 : type === 'orbital' ? 1000 : 800;
     setCombatEffects(prev => [...prev.slice(-7), { type, regionId, id }]);
-    setTimeout(() => setCombatEffects(prev => prev.filter(e => e.id !== id)), 900);
-  }, []);
+    setTimeout(() => setCombatEffects(prev => prev.filter(e => e.id !== id)), duration);
+    // Screen shake — stronger for nukes
+    if (type === 'nuke')    triggerShake(18);
+    else if (type === 'orbital') triggerShake(10);
+    else if (type === 'explosion' || type === 'defense') triggerShake(5);
+  }, [triggerShake]);
   const [showDiplomacy, setShowDiplomacy] = React.useState(false);
   const [showResearch, setShowResearch] = React.useState(false);
   const [showNukeModal, setShowNukeModal] = React.useState(false);
@@ -97,6 +137,37 @@ const App = () => {
     setShowTutorial(false);
     updateSettings({ tutorialSeen: true });
   };
+  // Fire visual effects when attacks/nukes happen — watch gameLog length
+  const gameLogLen = useGameStore(s => (s.gameLog || []).length);
+  const gameLogRef = React.useRef(0);
+  const regionsRef = React.useRef({});
+  React.useEffect(() => { regionsRef.current = regions || {}; }, [regions]);
+
+  React.useEffect(() => {
+    if (gameLogLen <= gameLogRef.current) { gameLogRef.current = gameLogLen; return; }
+    gameLogRef.current = gameLogLen;
+    const log = useGameStore.getState().gameLog || [];
+    const latest = log[0] || '';
+    if (!selectedRegionId) return;
+    if (latest.includes('☢') || latest.toLowerCase().includes('nuke') || latest.toLowerCase().includes('nuclear')) {
+      fireEffect('nuke', selectedRegionId);
+      audio.play('nuke');
+    } else if (latest.includes('⚡') || latest.toLowerCase().includes('orbital')) {
+      fireEffect('orbital', selectedRegionId);
+      audio.play('orbital');
+    } else if (latest.toLowerCase().includes('captur') || latest.toLowerCase().includes('conquer') || latest.includes('→')) {
+      fireEffect('explosion', selectedRegionId);
+      fireEffect('capture', selectedRegionId);
+      audio.play('capture');
+    } else if (latest.toLowerCase().includes('repel') || latest.toLowerCase().includes('defend') || latest.toLowerCase().includes('held')) {
+      fireEffect('defense', selectedRegionId);
+      audio.play('defense');
+    } else if (latest.toLowerCase().includes('attack') || latest.toLowerCase().includes('assault')) {
+      fireEffect('explosion', selectedRegionId);
+      audio.play('attack');
+    }
+  }, [gameLogLen]);
+
  // { type, label, icon, detail, onConfirm }
   const [showSpyMenu, setShowSpyMenu] = React.useState(false);
   const [showCampaign, setShowCampaign] = React.useState(false);
@@ -251,9 +322,12 @@ const App = () => {
       <View style={styles.screenRoot}>
 
         {/* LAYER 1: MAP BACKGROUND */}
-        <View style={styles.mapLayer}>
+        <ReAnimatedView style={[styles.mapLayer, shakeStyle]}>
           <GameMap />
-        </View>
+        </ReAnimatedView>
+
+        {/* LAYER 1b: COMBAT EFFECTS OVERLAY */}
+        <CombatEffects effects={combatEffects} />
 
         {/* LAYER 2: SKIA OVERLAY (borders, hanging frames) */}
         <GameFrame />
@@ -267,19 +341,19 @@ const App = () => {
             <View style={styles.resourcesContainer}>
               <Tooltip text={t('tooltip.oil')} style={styles.resourceItem}>
                 <Droplet size={13} color="#ffd700" />
-                <Text style={styles.resourceText}>{currentFS.oil} {t('hud.oil')}</Text>
+                <AnimatedNumber value={currentFS.oil} style={styles.resourceText} suffix={" " + t('hud.oil')} />
               </Tooltip>
               <Tooltip text={t('tooltip.steel')} style={styles.resourceItem}>
                 <Layers size={13} color="#bdc3c7" />
-                <Text style={styles.resourceText}>{currentFS.supplies} {t('hud.steel')}</Text>
+                <AnimatedNumber value={currentFS.supplies} style={styles.resourceText} suffix={" " + t('hud.steel')} />
               </Tooltip>
               <Tooltip text={t('tooltip.funds')} style={styles.resourceItem}>
                 <Banknote size={13} color="#2ecc71" />
-                <Text style={styles.resourceText}>${currentFS.funds} {t('hud.money')}</Text>
+                <AnimatedNumber value={currentFS.funds} style={styles.resourceText} prefix="$" suffix={" " + t('hud.money')} />
               </Tooltip>
               <Tooltip text={t('tooltip.stability')} style={styles.resourceItem}>
                 <Zap size={13} color="#3498db" />
-                <Text style={styles.resourceText}>{currentFS?.stability || 0}% {t('hud.energy')}</Text>
+                <AnimatedNumber value={currentFS?.stability || 0} style={styles.resourceText} suffix={"% " + t('hud.energy')} increaseColor="#2ecc71" decreaseColor="#e74c3c" />
               </Tooltip>
               <TouchableOpacity
                 style={[styles.resourceItem, styles.techPointsItem, showResearch && styles.techPointsActive]}
@@ -402,9 +476,9 @@ const App = () => {
                   ))}
                   <View style={styles.intelDivider} />
                   <View style={styles.intelUnitsRow}>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.infantry')} {selectedRegion.infantry || 0}</Text></View>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.armor')} {selectedRegion.armor || 0}</Text></View>
-                    <View style={styles.intelUnitChip}><Text style={styles.intelUnitText}>{t('unit.air')} {selectedRegion.air || 0}</Text></View>
+                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.infantry || 0} style={styles.intelUnitText} prefix={t('unit.infantry') + ' '} /></View>
+                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.armor || 0} style={styles.intelUnitText} prefix={t('unit.armor') + ' '} /></View>
+                    <View style={styles.intelUnitChip}><AnimatedNumber value={selectedRegion.air || 0} style={styles.intelUnitText} prefix={t('unit.air') + ' '} /></View>
                   </View>
                 </View>
               ) : (
@@ -723,9 +797,9 @@ const App = () => {
 
 
         {/* ── UNDO LAST ACTION ─────────────────────────────────────── */}
-        {undoLabel && uiMode === 'GAME' && (
+        {undoLabelLive && uiMode === 'GAME' && (
           <View style={styles.undoBar}>
-            <Text style={styles.undoLabel}>↩ {t('undo.label')} ({t('undo.' + undoLabel)})</Text>
+            <Text style={styles.undoLabel}>↩ {t('undo.label')} ({t('undo.' + undoLabelLive)})</Text>
             <TouchableOpacity style={styles.undoBtn} onPress={() => { undoLastAction(); }}>
               <Text style={styles.undoBtnText}>{t('undo.action')}</Text>
             </TouchableOpacity>
@@ -1330,8 +1404,3 @@ const styles = StyleSheet.create({
 });
 
 export default App;
-          {showTutorial && uiMode === 'GAME' && (
-            <TutorialOverlay onDismiss={dismissTutorial} />
-          )}
-
-

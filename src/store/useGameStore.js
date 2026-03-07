@@ -387,16 +387,21 @@ const useGameStore = create((set, get) => ({
     // ── UNDO SYSTEM ────────────────────────────────────────────────────────────
     saveUndoSnapshot: (label) => {
         const s = get();
-        // Only snapshot the mutable game state, not UI or settings
-        set({
-            undoSnapshot: {
-                regions: JSON.parse(JSON.stringify(s.regions)),
-                factions: JSON.parse(JSON.stringify(s.factions)),
-                trackedStats: { ...s.trackedStats },
-                gameLog: [...(s.gameLog || [])],
-            },
-            undoLabel: label,
-        });
+        // Guard: only snapshot when game is fully initialised
+        if (!s.regions || !s.factions || !s.playerFaction) return;
+        try {
+            set({
+                undoSnapshot: {
+                    regions:      JSON.parse(JSON.stringify(s.regions)),
+                    factions:     JSON.parse(JSON.stringify(s.factions)),
+                    trackedStats: { ...(s.trackedStats || {}) },
+                    gameLog:      [...(s.gameLog || [])],
+                },
+                undoLabel: label,
+            });
+        } catch (e) {
+            console.warn('[Undo] snapshot failed:', e.message);
+        }
     },
 
     undoLastAction: () => {
@@ -415,14 +420,16 @@ const useGameStore = create((set, get) => ({
     clearUndoSnapshot: () => set({ undoSnapshot: null, undoLabel: null }),
 
     attack: (fromId, toId) => {
-        // Save undo snapshot before committing
-        get().saveUndoSnapshot('attack');
         const state = get();
         const from = state.regions[fromId];
         const to = state.regions[toId];
 
+        // Validate before snapshotting
         if (!from || !to || from.faction !== state.playerFaction || to.faction === state.playerFaction) return;
         if (from.infantry < 2 && from.armor < 1 && from.air < 1) return;
+
+        // Save undo snapshot only for valid attacks
+        get().saveUndoSnapshot('attack');
 
         const fromFaction = state.factions[from.faction];
         const toFaction = state.factions[to.faction] || {};
@@ -504,12 +511,14 @@ const useGameStore = create((set, get) => ({
     },
 
     buildUnit: (regionId, unitType) => {
-        get().saveUndoSnapshot('build');
         const state = get();
         const region = state.regions[regionId];
         const faction = state.factions[state.playerFaction];
 
         if (!region || region.faction !== state.playerFaction) return;
+
+        // Save undo snapshot after validation passes
+        get().saveUndoSnapshot('build');
 
         // Naval units require coastal regions
         if (['destroyer','submarine','carrier'].includes(unitType) && !COASTAL_REGIONS.has(regionId)) {
