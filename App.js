@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Animated, InteractionManager } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Platform, Animated, InteractionManager, StatusBar } from 'react-native';
 import {
   Zap,
   Globe,
@@ -23,9 +23,10 @@ import Animated2, {
 import { View as RNView } from 'react-native';
 const ReAnimatedView = createAnimatedComponent(RNView);
 
-import useGameStore from './src/store/useGameStore';
+import useGameStore, { COMMANDER_RANKS, getRankFromXP, calcMatchXP, getWeeklyChallenge } from './src/store/useGameStore';
 import { useShallow } from 'zustand/shallow';
 import { FD, getTerrain } from './src/data/mapData';
+import { FACTION_STORY_EVENTS } from './src/logic/eventSystem';
 import { computeTechModifiers } from './src/data/techTree';
 import GameMap from './src/components/GameMap';
 import IntroScreen from './src/components/IntroScreen';
@@ -80,6 +81,7 @@ const App = () => {
     weather: s.weather, spyReveal: s.spyReveal, spySabotage: s.spySabotage,
     spyAssassinate: s.spyAssassinate,
     missionProgress: s.missionProgress, newlyCompletedMissions: s.newlyCompletedMissions,
+    saveCommanderMeta: s.saveCommanderMeta,
   })));
   // Granular selectors — only subscribe to what App.js actually needs
   // selectedRegion: single region object (re-renders only when that region changes)
@@ -94,6 +96,9 @@ const App = () => {
   const currentFS     = useGameStore(s => s.factions[s.playerFaction] || EMPTY_FACTION);
   const gameLogLen    = useGameStore(s => (s.gameLog || []).length);
   const achievements  = useGameStore(s => s.achievements || EMPTY_ACHIEVEMENTS);
+  const reputation     = useGameStore(s => s.reputation ?? 50);
+  const commanderMeta  = useGameStore(s => s.commanderMeta || { xp: 0, rank: 0 });
+  const debriefLog     = useGameStore(s => s.debriefLog || []);
 
   // ── Screen shake (Reanimated — UI thread) ────────────────────────────────
   const shakeX = useSharedValue(0);
@@ -172,6 +177,19 @@ const App = () => {
   // gameLogLen moved to selector block — ref kept here
   const gameLogRef = React.useRef(0);
   const regionsRef = React.useRef({});
+  // Check if latest event has choices → open modal
+  React.useEffect(() => {
+    if (!activeEventLog || activeEventLog.length === 0) return;
+    const latestId = activeEventLog[activeEventLog.length - 1];
+    // Find event by id in WORLD_EVENTS
+    const { WORLD_EVENTS } = require('./src/logic/eventSystem');
+    const ev = WORLD_EVENTS.find(e => e.id === latestId);
+    if (ev?.choices && !firedStoryEvents.current.has('choice_' + latestId)) {
+      firedStoryEvents.current.add('choice_' + latestId);
+      setPendingChoiceEvent(ev);
+    }
+  }, [activeEventLog]);
+
   // Keep regionsRef in sync via getState — no subscription needed
 
   React.useEffect(() => {
@@ -210,9 +228,11 @@ const App = () => {
   const [achievementToast, setAchievementToast] = React.useState(null);
   const [pendingCutscene, setPendingCutscene] = React.useState(null); // 2 | 3
   const [endTurnLoading, setEndTurnLoading] = React.useState(false);
+  const [pendingChoiceEvent, setPendingChoiceEvent] = React.useState(null); // { event, choices }
+  const [weeklyChallenge] = React.useState(() => getWeeklyChallenge());
   const loadingAnim = React.useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => { checkHasSave(); }, [checkHasSave]);
+  React.useEffect(() => { checkHasSave(); useGameStore.getState().loadCommanderMeta?.(); }, [checkHasSave]);
 
   // Watch for new achievements to toast
   // achievements selector moved to selector block
@@ -259,78 +279,191 @@ const App = () => {
     }
   }, [endTurnLoading]);
 
-  if (uiMode === 'SPLASH') return <ScreenTransition type='fade' duration={400}><SplashScreen /></ScreenTransition>;
+  if (uiMode === 'SPLASH') return <View style={{ flex: 1, backgroundColor: '#000' }}><SplashScreen /></View>;
   if (uiMode === 'INTRO') return <ScreenTransition type='fade' duration={600}><IntroScreen /></ScreenTransition>;
   if (uiMode === 'MENU') return <ScreenTransition type='slideUp' duration={350}><MainMenuView /></ScreenTransition>;
   if (uiMode === 'FACTION') return <ScreenTransition type='slideUp' duration={300}><FactionSelectView onStart={startGame} /></ScreenTransition>;
   if (uiMode === 'SETTINGS') return <ScreenTransition type='slideUp' duration={300}><SettingsView /></ScreenTransition>;
 
-  // ── GAME OVER SCREEN ─────────────────────────────────────────────────────────
+  // ── GAME OVER — POST-CAMPAIGN DEBRIEF ───────────────────────────────────────
   if (isGameOver) {
-    const isVictory = gameOverReason === 'victory';
-    const titles = { // translated below
-      victory:  '🏆 WORLD DOMINATION',
-      military: '💀 MILITARY DEFEAT',
-      collapse: '🔥 SYSTEMATIC COLLAPSE',
-      nuclear:  '☢ NUCLEAR ANNIHILATION',
-    };
-    const subtitles = {
-      victory:  `${FD[playerFaction]?.name || playerFaction} conquers the globe in ${turn} turns.`,
-      military: t('gameover.sub.military'),
-      collapse: t('gameover.sub.collapse'),
-      nuclear:  t('gameover.sub.nuclear'),
-    };
-    const colors = { victory: '#c8a35c', military: '#e74c3c', collapse: '#e67e22', nuclear: '#9b59b6' };
+    const isVictory   = gameOverReason === 'victory';
+    const colors      = { victory: '#c8a35c', military: '#e74c3c', collapse: '#e67e22', nuclear: '#9b59b6' };
     const accentColor = colors[gameOverReason] || '#e74c3c';
+    const titles      = { victory: '🏆 WORLD DOMINATION', military: '💀 MILITARY DEFEAT', collapse: '🔥 SYSTEMATIC COLLAPSE', nuclear: '☢ NUCLEAR ANNIHILATION' };
+    const subtitles   = { victory: `${FD[playerFaction]?.name || playerFaction} conquers the globe in ${turn} turns.`, military: t('gameover.sub.military'), collapse: t('gameover.sub.collapse'), nuclear: t('gameover.sub.nuclear') };
+    const ts          = useGameStore.getState().trackedStats || {};
+    const matchXP     = calcMatchXP(ts, gameOverReason);
+    const prevMeta    = commanderMeta || { xp: 0, rank: 0 };
+    const newTotalXP  = prevMeta.xp + matchXP;
+    const prevRank    = getRankFromXP(prevMeta.xp);
+    const newRank     = getRankFromXP(newTotalXP);
+    const didRankUp   = newRank.rank > prevRank.rank;
+
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: '#05080a', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ color: accentColor, fontSize: 28, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginBottom: 12 }}>
-            {titles[gameOverReason] || t('gameover.default')}
-          </Text>
-          <Text style={{ color: '#a0b8c8', fontSize: 13, textAlign: 'center', letterSpacing: 1, marginBottom: 32, lineHeight: 20 }}>
-            {subtitles[gameOverReason]}
-          </Text>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: '#2c3a44', padding: 16, width: '100%', marginBottom: 24 }}>
-            <Text style={{ color: '#5f727d', fontSize: 10, letterSpacing: 2, marginBottom: 8 }}>{t('gameover.summary')}</Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>{t('gameover.turnsSurvived')} <Text style={{ color: '#fff', fontWeight: '700' }}>{turn}</Text></Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12, marginBottom: 4 }}>{t('gameover.actReached')} <Text style={{ color: accentColor, fontWeight: '700' }}>{t('gameover.actLabel', { n: actPhase })}</Text></Text>
-            <Text style={{ color: '#c8d8e8', fontSize: 12 }}>{t('gameover.regionsHeld')} <Text style={{ color: '#fff', fontWeight: '700' }}>{playerRegionCount}</Text></Text>
-          </View>
-          <View style={{ width: '100%', marginBottom: 32 }}>
-            {(actEvents || []).slice(-3).map((ev, i) => (
-              <Text key={i} style={{ color: '#5a8a9a', fontSize: 10, letterSpacing: 1, marginBottom: 4, textAlign: 'center' }}>{ev}</Text>
-            ))}
-          </View>
-          <TouchableOpacity
-            style={{ backgroundColor: accentColor, paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12 }}
-            onPress={() => useGameStore.setState({ uiMode: 'MENU', isGameOver: false, gameOverReason: null })}
-          >
-            <Text style={{ color: '#05080a', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>{t('gameover.mainMenu')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{ borderWidth: 1, borderColor: '#2ecc71', paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12 }}
-            onPress={() => setShowStats(true)}
-          >
-            <Text style={{ color: '#2ecc71', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>
-              📊 STATISTICS
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+        <StatusBar hidden translucent backgroundColor="transparent" />
+        <View style={{ flex: 1, backgroundColor: '#03060a' }}>
+          {/* Hero banner */}
+          <View style={{ paddingTop: 56, paddingHorizontal: 28, paddingBottom: 20,
+            borderBottomWidth: 1, borderBottomColor: accentColor + '44',
+            backgroundColor: accentColor + '0d', alignItems: 'center' }}>
+            <Text style={{ color: accentColor, fontSize: 26, fontWeight: '900',
+              letterSpacing: 3, textAlign: 'center' }}>
+              {titles[gameOverReason] || '— CAMPAIGN OVER —'}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{ borderWidth: 1, borderColor: '#f0a030', paddingHorizontal: 40, paddingVertical: 14, marginBottom: 12 }}
-            onPress={() => setShowLeaderboard(true)}
-          >
-            <Text style={{ color: '#f0a030', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>
-              🏆 LEADERBOARD
-            </Text>
-          </TouchableOpacity>
-          {showLeaderboard && <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />}
-          <TouchableOpacity
-            style={{ borderWidth: 1, borderColor: '#2c3a44', paddingHorizontal: 40, paddingVertical: 14 }}
-            onPress={() => useGameStore.getState().startGame(playerFaction)}
-          >
-            <Text style={{ color: '#5f727d', fontWeight: '900', fontSize: 14, letterSpacing: 3 }}>{t('gameover.newCampaign')}</Text>
-          </TouchableOpacity>
+            <Text style={{ color: '#8090a0', fontSize: 11, textAlign: 'center',
+              letterSpacing: 1, marginTop: 6 }}>{subtitles[gameOverReason]}</Text>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+
+            {/* Rank up banner */}
+            {didRankUp && (
+              <View style={{ backgroundColor: 'rgba(200,163,92,0.12)', borderWidth: 1,
+                borderColor: '#c8a35c', padding: 14, marginBottom: 16, alignItems: 'center' }}>
+                <Text style={{ color: '#c8a35c', fontSize: 16 }}>🎉 RANK UP!</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900',
+                  letterSpacing: 2, marginTop: 4 }}>
+                  {prevRank.badge} {prevRank.title}  →  {newRank.badge} {newRank.title}
+                </Text>
+              </View>
+            )}
+
+            {/* Commander XP row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
+              marginBottom: 20, padding: 14, backgroundColor: 'rgba(255,255,255,0.03)',
+              borderWidth: 1, borderColor: '#1e2e38' }}>
+              <Text style={{ fontSize: 28 }}>{newRank.badge}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#5f727d', fontSize: 8, letterSpacing: 2 }}>COMMANDER RANK</Text>
+                <Text style={{ color: '#c8a35c', fontSize: 14, fontWeight: '900',
+                  letterSpacing: 2 }}>{newRank.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <View style={{ flex: 1, height: 4, backgroundColor: '#1a252f' }}>
+                    <View style={{ width: `${Math.min(100, (newTotalXP / Math.max(1, (COMMANDER_RANKS[Math.min(9, newRank.rank+1)]?.xpRequired || newTotalXP))) * 100)}%`,
+                      height: 4, backgroundColor: '#c8a35c' }} />
+                  </View>
+                  <Text style={{ color: '#c8a35c', fontSize: 9 }}>+{matchXP} XP</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Stats grid */}
+            <Text style={{ color: '#5f727d', fontSize: 9, letterSpacing: 3,
+              marginBottom: 10 }}>CAMPAIGN STATISTICS</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {[
+                { label: 'TURNS', value: turn, icon: '⏱' },
+                { label: 'REGIONS HELD', value: playerRegionCount, icon: '🗺' },
+                { label: 'ATTACKS WON', value: ts.attacksWon || 0, icon: '⚔' },
+                { label: 'CAPTURES', value: ts.totalCaptures || 0, icon: '🚩' },
+                { label: 'NUKES USED', value: ts.nukesLaunched || 0, icon: '☢' },
+                { label: 'ACT REACHED', value: `ACT ${actPhase}`, icon: '📖' },
+              ].map(s => (
+                <View key={s.label} style={{ width: '30%', padding: 10,
+                  backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1,
+                  borderColor: '#1e2e38', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</Text>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>{s.value}</Text>
+                  <Text style={{ color: '#5f727d', fontSize: 7, letterSpacing: 1.5,
+                    textAlign: 'center' }}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Reputation bar */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ color: '#5f727d', fontSize: 9, letterSpacing: 3,
+                marginBottom: 8 }}>GLOBAL REPUTATION</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ flex: 1, height: 8, backgroundColor: '#0e1c24', borderRadius: 4 }}>
+                  <View style={{
+                    width: `${Math.max(2, Math.min(100, (reputation + 100) / 2))}%`,
+                    height: 8, borderRadius: 4,
+                    backgroundColor: reputation > 30 ? '#2ecc71' : reputation > 0 ? '#f39c12' : '#e74c3c'
+                  }} />
+                </View>
+                <Text style={{ color: reputation > 0 ? '#2ecc71' : '#e74c3c',
+                  fontSize: 12, fontWeight: '900', width: 40, textAlign: 'right' }}>
+                  {reputation > 0 ? '+' : ''}{reputation}
+                </Text>
+              </View>
+            </View>
+
+            {/* Debrief timeline */}
+            {debriefLog.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: '#5f727d', fontSize: 9, letterSpacing: 3,
+                  marginBottom: 10 }}>CAMPAIGN TIMELINE</Text>
+                {debriefLog.slice(0, 12).map((entry, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start',
+                    gap: 10, marginBottom: 6 }}>
+                    <View style={{ width: 1, backgroundColor: accentColor + '44',
+                      alignSelf: 'stretch', marginTop: 4 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#3a4a54', fontSize: 8 }}>TURN {entry.turn}</Text>
+                      <Text style={{ color: '#c8d8e8', fontSize: 10 }}>{entry.desc}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Key events */}
+            {(actEvents || []).length > 0 && (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ color: '#5f727d', fontSize: 9, letterSpacing: 3,
+                  marginBottom: 8 }}>KEY EVENTS</Text>
+                {(actEvents || []).slice(-5).map((ev, i) => (
+                  <Text key={i} style={{ color: '#5a8a9a', fontSize: 10, letterSpacing: 0.5,
+                    marginBottom: 4, paddingLeft: 8, borderLeftWidth: 2,
+                    borderLeftColor: '#2c3a44' }}>{ev}</Text>
+                ))}
+              </View>
+            )}
+
+            {/* Action buttons */}
+            <TouchableOpacity
+              style={{ backgroundColor: accentColor, padding: 16, alignItems: 'center',
+                marginBottom: 10 }}
+              onPress={() => {
+                const xp = calcMatchXP(useGameStore.getState().trackedStats, gameOverReason);
+                if (saveCommanderMeta) saveCommanderMeta(xp);
+                useGameStore.setState({ uiMode: 'MENU', isGameOver: false, gameOverReason: null });
+              }}
+            >
+              <Text style={{ color: '#05080a', fontWeight: '900', fontSize: 14,
+                letterSpacing: 3 }}>{t('gameover.mainMenu')}</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, borderWidth: 1, borderColor: '#2ecc71',
+                  padding: 14, alignItems: 'center' }}
+                onPress={() => setShowStats(true)}
+              >
+                <Text style={{ color: '#2ecc71', fontWeight: '900', fontSize: 12,
+                  letterSpacing: 2 }}>📊 STATS</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, borderWidth: 1, borderColor: '#f0a030',
+                  padding: 14, alignItems: 'center' }}
+                onPress={() => setShowLeaderboard(true)}
+              >
+                <Text style={{ color: '#f0a030', fontWeight: '900', fontSize: 12,
+                  letterSpacing: 2 }}>🏆 RANKS</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={{ borderWidth: 1, borderColor: '#2c3a44', padding: 14,
+                alignItems: 'center' }}
+              onPress={() => useGameStore.getState().startGame(playerFaction)}
+            >
+              <Text style={{ color: '#5f727d', fontWeight: '900', fontSize: 12,
+                letterSpacing: 3 }}>{t('gameover.newCampaign')}</Text>
+            </TouchableOpacity>
+            {showLeaderboard && <LeaderboardScreen onClose={() => setShowLeaderboard(false)} />}
+          </ScrollView>
         </View>
       </GestureHandlerRootView>
     );
@@ -371,15 +504,18 @@ const App = () => {
             <View style={styles.resourcesContainer}>
               <Tooltip text={t('tooltip.oil')} style={styles.resourceItem}>
                 <Droplet size={13} color="#ffd700" />
-                <Text style={styles.resourceText}>{currentFS.oil} {t('hud.oil')}</Text>
+                <Text style={styles.resourceText}>{currentFS?.oil ?? 0} {t('hud.oil')}</Text>
               </Tooltip>
               <Tooltip text={t('tooltip.steel')} style={styles.resourceItem}>
                 <Layers size={13} color="#bdc3c7" />
-                <Text style={styles.resourceText}>{currentFS.supplies} {t('hud.steel')}</Text>
+                <Text style={styles.resourceText}>{currentFS?.supplies ?? 0} {t('hud.steel')}</Text>
               </Tooltip>
               <Tooltip text={t('tooltip.funds')} style={styles.resourceItem}>
                 <Banknote size={13} color="#2ecc71" />
-                <Text style={styles.resourceText}>${currentFS.funds} {t('hud.money')}</Text>
+                <Text style={styles.resourceText}>${currentFS?.funds ?? 0} {t('hud.money')}</Text>
+                <Text style={[styles.resourceText, { color: reputation > 30 ? '#2ecc71' : reputation > 0 ? '#f39c12' : '#e74c3c' }]}>
+                  {reputation > 0 ? '+' : ''}{reputation} REP
+                </Text>
               </Tooltip>
               <Tooltip text={t('tooltip.stability')} style={styles.resourceItem}>
                 <Zap size={13} color="#3498db" />
@@ -656,7 +792,7 @@ const App = () => {
               { label: t('nav.alliance'), icon: '🤝',  onPress: () => { setShowDiplomacy(!showDiplomacy); setShowEconomy(false); setShowResearch(false); setShowTrade(false); }, active: showDiplomacy },
               { label: '📦 TRADE',       icon: '📦',  onPress: () => { setShowTrade(!showTrade); setShowDiplomacy(false); setShowEconomy(false); setShowResearch(false); }, active: showTrade },
               { label: '🏆 RANK',       icon: '🏆',  onPress: () => setShowLeaderboard(!showLeaderboard), active: showLeaderboard },
-              { label: t('nav.endTurn'), icon: '▶',  onPress: async () => {
+              { label: t('nav.endTurn'), icon: '▶', flex: 1.6, onPress: async () => {
                   if (endTurnLoading) return;
                   setEndTurnLoading(true);
                   audio.play('endTurn');
@@ -669,7 +805,7 @@ const App = () => {
               <TouchableOpacity
                 key={i}
                 onPress={tab.onPress}
-                style={[styles.navTab, tab.active && styles.navTabActive, tab.danger && styles.navTabDanger]}
+                style={[styles.navTab, tab.active && styles.navTabActive, tab.danger && styles.navTabDanger, tab.flex ? { flex: tab.flex } : null]}
               >
                 <Text style={styles.navTabIcon}>{tab.icon}</Text>
                 <Text style={[styles.navTabLabel, tab.active && styles.navTabLabelActive, tab.danger && styles.navTabLabelDanger]}>
@@ -839,6 +975,54 @@ const App = () => {
           </View>
         )}
 
+      {/* ── EVENT CHOICE MODAL ──────────────────────────────────────────────── */}
+      {pendingChoiceEvent && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(2,4,10,0.96)', justifyContent: 'center',
+          alignItems: 'center', zIndex: 1200, padding: 24 }}>
+          <Text style={{ color: '#e74c3c', fontSize: 9, letterSpacing: 3, marginBottom: 6 }}>⚡ WORLD EVENT</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 2,
+            textAlign: 'center', marginBottom: 10 }}>{pendingChoiceEvent.title}</Text>
+          <Text style={{ color: '#8090a0', fontSize: 11, textAlign: 'center', lineHeight: 18,
+            marginBottom: 24 }}>{pendingChoiceEvent.desc}</Text>
+          {(pendingChoiceEvent.choices || []).map(choice => (
+            <TouchableOpacity
+              key={choice.id}
+              style={{ width: '100%', marginBottom: 10, padding: 14, borderWidth: 1,
+                borderColor: '#2c3a44', backgroundColor: 'rgba(15,25,35,1)' }}
+              onPress={() => {
+                try {
+                  const state = useGameStore.getState();
+                  const result = choice.effect({
+                    factions: state.factions, regions: state.regions,
+                    playerFaction: state.playerFaction,
+                  });
+                  useGameStore.setState(s => ({
+                    factions:   result.factions   || s.factions,
+                    regions:    result.regions    || s.regions,
+                    reputation: Math.max(-100, Math.min(100,
+                      (s.reputation ?? 50) + (result.reputationDelta || 0))),
+                    gameLog: [result.log, ...s.gameLog].slice(0, 8),
+                  }));
+                } catch (e) { console.warn('Choice effect failed:', e); }
+                setPendingChoiceEvent(null);
+              }}
+            >
+              <Text style={{ color: '#3a9eff', fontSize: 12, fontWeight: '900',
+                letterSpacing: 1, marginBottom: 3 }}>{choice.label}</Text>
+              <Text style={{ color: '#5f727d', fontSize: 10 }}>{choice.desc}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={{ marginTop: 8, padding: 10 }}
+            onPress={() => setPendingChoiceEvent(null)}
+          >
+            <Text style={{ color: '#3a4a54', fontSize: 10, letterSpacing: 2 }}>DISMISS</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+
     </GestureHandlerRootView>
   );
 };
@@ -852,19 +1036,20 @@ const styles = StyleSheet.create({
 
   mapLayer: {
     position: 'absolute',
-    top: 10,
-    bottom: 10,
-    left: 0,   // Spread map across whole width to kill the black edge
-    right: 0,  // Spread map across whole width to kill the black edge
-    backgroundColor: 'transparent', // Let screenRoot #000 show if map fails
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     zIndex: 1,
   },
   uiLayer: {
     position: 'absolute',
-    top: 10, bottom: 10, left: 10, right: 10,
+    top: 0, bottom: 0, left: 0, right: 0,
     zIndex: 100,
     justifyContent: 'space-between',
+    paddingHorizontal: 0,
   },
   panelsContainer: {
     flex: 1,
@@ -890,13 +1075,15 @@ const styles = StyleSheet.create({
 
   topResourceBar: {
     flexDirection: 'row',
-    height: 42,
-    backgroundColor: 'transparent',
+    height: 44,
+    backgroundColor: 'rgba(4,10,20,0.92)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(52,152,219,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     zIndex: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 4,
   },
 
   resourcesContainer: {
@@ -945,9 +1132,11 @@ const styles = StyleSheet.create({
   // TACTICAL BRIEFING — matches HTML .tactical-briefing exactly
   briefingPanel: {
     position: 'absolute',
-    top: 10,
+    top: 44,
     left: 0,
-    width: 156,
+    width: 160,
+    maxHeight: 180,
+    overflow: 'hidden',
     backgroundColor: 'transparent',
     borderWidth: 0,
     borderColor: '#3f515d',
@@ -1015,9 +1204,10 @@ const styles = StyleSheet.create({
   // TERRAIN INTEL panel
   intelPanel: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 52,
     left: 0,
     width: 160,
+    maxHeight: 200,
     backgroundColor: 'rgba(6,14,26,0.92)',
     borderWidth: 1,
     borderColor: 'rgba(52,152,219,0.25)',
@@ -1139,7 +1329,7 @@ const styles = StyleSheet.create({
   // SELECTION CARD
   selectionOverlay: {
     position: 'absolute',
-    bottom: 42,
+    bottom: 52,
     right: 0,
   },
   selectionCard: {
@@ -1359,8 +1549,8 @@ const styles = StyleSheet.create({
 
   // BOTTOM NAV — real styled tabs
   bottomNavBar: {
-    height: 38,
-    marginHorizontal: -10,
+    height: 48,
+    marginHorizontal: 0,
     flexDirection: 'row',
     alignItems: 'stretch',
     backgroundColor: 'rgba(6,12,22,0.96)',

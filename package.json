@@ -4,8 +4,8 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "esbuild entry.jsx --bundle --outfile=dist/bundle.js --define:process.env.NODE_ENV=\\\"production\\\" --inject:react-shim.js"
   },
@@ -15,8 +15,8 @@
     "@shopify/react-native-skia": "2.4.18",
     "d3-geo": "^3.1.1",
     "expo": "~55.0.4",
-    "expo-av": "^15.0.2",
     "expo-status-bar": "~55.0.4",
+    "expo-video": "~55.0.10",
     "lucide-react-native": "^0.577.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -24,7 +24,6 @@
     "react-native-gesture-handler": "~2.30.0",
     "react-native-reanimated": "4.2.1",
     "react-native-web": "^0.21.2",
-    "react-native-worklets-core": "^1.6.3",
     "zustand": "^5.0.11"
   },
   "private": true,

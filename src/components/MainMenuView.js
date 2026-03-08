@@ -5,13 +5,15 @@ import {
     Text,
     TouchableOpacity,
     SafeAreaView,
+    ScrollView,
     Animated,
     Dimensions
 } from 'react-native';
 import { Play, Settings, BookOpen, Clock, ShieldAlert } from 'lucide-react-native';
-import useGameStore from '../store/useGameStore';
+import useGameStore, { getRankFromXP, getWeeklyChallenge, COMMANDER_RANKS } from '../store/useGameStore';
 import CreditsScreen from './CreditsScreen';
 import { useTranslation } from '../i18n/i18n';
+import MenuBackground from './MenuBackground';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +25,8 @@ const MainMenuView = () => {
     const [showModeSelect, setShowModeSelect] = React.useState(false);
     const gameMode = useGameStore(s => s.gameMode);
     const hasSave = useGameStore(s => s.hasSave);
+    const commanderMeta = useGameStore(s => s.commanderMeta || { xp: 0, rank: 0 });
+    const [weeklyChallenge] = React.useState(() => getWeeklyChallenge());
     const loadGame = useGameStore(s => s.loadGame);
 
     // Simple staggered fade in for menu items
@@ -42,21 +46,65 @@ const MainMenuView = () => {
 
     return (
         <View style={styles.container}>
-            {/* Ambient Background Grid Overlay */}
-            <View style={styles.gridOverlay}>
-                {Array.from({ length: 20 }).map((_, i) => (
-                    <View key={`h-${i}`} style={[styles.gridLineH, { top: i * 40 }]} />
-                ))}
-                {Array.from({ length: 10 }).map((_, i) => (
-                    <View key={`v-${i}`} style={[styles.gridLineV, { left: i * 40 }]} />
-                ))}
-            </View>
+            {/* Animated Background — Skia node network */}
+            <MenuBackground />
 
-            <View style={styles.content}>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+            >
                 <View style={styles.header}>
                     <ShieldAlert color="#3a9eff" size={32} opacity={0.8} />
+                    {/* Commander rank */}
+                    {(() => {
+                        const rank = getRankFromXP(commanderMeta.xp);
+                        return (
+                            <View style={{ flexDirection: 'row', alignItems: 'center',
+                                gap: 6, marginBottom: 4 }}>
+                                <Text style={{ fontSize: 14 }}>{rank.badge}</Text>
+                                <Text style={{ color: '#c8a35c', fontSize: 8,
+                                    letterSpacing: 2, fontWeight: '900' }}>{rank.title}</Text>
+                                <Text style={{ color: '#3a4a54', fontSize: 8 }}>·</Text>
+                                <Text style={{ color: '#5f727d', fontSize: 8 }}>
+                                    {commanderMeta.xp} XP</Text>
+                            </View>
+                        );
+                    })()}
                     <Text style={styles.title}>{t('menu.subtitle')}</Text>
                     <Text style={styles.subtitle}>{t('menu.header')}</Text>
+                </View>
+
+                {/* Weekly Challenge */}
+                <View style={{
+                    width: '100%', maxWidth: 350,
+                    marginBottom: 14, marginTop: 4,
+                    paddingHorizontal: 14, paddingVertical: 10,
+                    borderWidth: 1, borderColor: 'rgba(200,163,92,0.45)',
+                    backgroundColor: 'rgba(200,163,92,0.07)',
+                }}>
+                    <Text style={{ color: '#c8a35c', fontSize: 7, letterSpacing: 3,
+                        marginBottom: 6, opacity: 0.9 }}>
+                        ⚡ WEEKLY CHALLENGE · WEEK {weeklyChallenge.weekNum}
+                    </Text>
+                    {weeklyChallenge.modifiers.map(m => (
+                        <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center',
+                            gap: 8, marginBottom: 4 }}>
+                            <Text style={{ fontSize: 13, width: 20, textAlign: 'center' }}>
+                                {m.label.split(' ')[0]}
+                            </Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#e8d89c', fontSize: 10,
+                                    fontWeight: '700', letterSpacing: 0.5 }}>
+                                    {m.label.slice(m.label.indexOf(' ')+1)}
+                                </Text>
+                                <Text style={{ color: '#6a7e8a', fontSize: 8, marginTop: 1 }}>
+                                    {m.desc}
+                                </Text>
+                            </View>
+                        </View>
+                    ))}
                 </View>
 
                 <View style={styles.menuContainer}>
@@ -102,7 +150,7 @@ const MainMenuView = () => {
                     <Text style={styles.version}>v3.1.0 // NIGHTMARE ENGINE</Text>
                     <Text style={styles.copyright}>© 2026 SOFTCURSE INTERACTIVE</Text>
                 </View>
-            </View>
+            </ScrollView>
 
             {/* Game Mode Selector Modal */}
             {showModeSelect && (
@@ -160,10 +208,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#3a9eff',
     },
     content: {
-        flex: 1,
-        paddingVertical: 15,
-        justifyContent: 'space-evenly',
-        alignItems: 'center', // Center everything horizontally
+        flexGrow: 1,
+        paddingVertical: 24,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        gap: 16,
     },
     header: {
         alignItems: 'center', // Center text

@@ -246,7 +246,7 @@ export const TRANSLATIONS = {
   'faction.east.name':    { en: 'Eastern Alliance',           ru: 'Восточный Альянс', ge: 'აღმოსავლეთის ალიანსი' },
   'faction.east.desc':    { en: 'Vast Eurasian territory & nuclear arsenal.',      ru: 'Огромная евразийская территория и ядерный арсенал.', ge: 'ვრცელი ევრაზიული ტერიტორია და ბირთვული არსენალი.' },
   'faction.china.name':   { en: 'Pacific Pact',               ru: 'Тихоокеанский Пакт', ge: 'წყნარი ოკეანის პაქტი' },
-  'faction.china.desc':   { en: "World's largest army & Pacific dominance.",      ru: 'Крупнейшая армия мира и господство в Тихом океане.' },
+  'faction.china.desc':   { en: "World's largest army & Pacific dominance.",      ru: 'Крупнейшая армия мира и господство в Тихом океане.' , ge: 'მსოფლიო' },
   'faction.command':      { en: 'COMMAND',                    ru: 'КОМАНДОВАНИЕ', ge: 'სარდლობა' },
 
   // ── GAME MODES (full labels + descriptions) ────────────────────────────────
@@ -363,7 +363,7 @@ export const TRANSLATIONS = {
   'trade.selectFaction':  { en: 'Select a target faction',   ru: 'Выберите фракцию', ge: 'სამიზნე ფრაქციის არჩევა' },
   'trade.established':    { en: '✓ Trade route established', ru: '✓ Торговый путь установлен', ge: '✓ სავაჭრო მარშრუტი დამყარდა' },
   'trade.sanctions.title': { en: 'ECONOMIC SANCTIONS',       ru: 'ЭКОНОМИЧЕСКИЕ САНКЦИИ', ge: 'ეკონომიკური სანქციები' },
-  'trade.sanctions.desc': { en: "Freeze 8% of a faction's funds each turn for 5 turns. Cost: 400 funds.", ru: 'Заморозьте 8% средств цели каждый ход на 5 ходов. Стоимость: 400 средств.' },
+  'trade.sanctions.desc': { en: "Freeze 8% of a faction's funds each turn for 5 turns. Cost: 400 funds.", ru: 'Заморозьте 8% средств цели каждый ход на 5 ходов. Стоимость: 400 средств.', ge: 'ყინავს ფრაქციის სახსრების 8%-ს 5 მოლოდინზე. ღირებულება: 400.' },
   'trade.sanctions.active': { en: 'turns remaining',         ru: 'ходов осталось', ge: 'მოლოდინი დარჩა' },
   'trade.sanctions.none': { en: 'Not sanctioned',            ru: 'Не под санкциями', ge: 'სანქციები არ გამოიყენება' },
   'trade.sanctions.impose': { en: 'IMPOSE',                  ru: 'ВВЕСТИ', ge: 'გამოყენება' },
@@ -416,7 +416,7 @@ export const TRANSLATIONS = {
   'faction.east.name':      { en: 'Eastern Alliance',     ru: 'Восточный альянс', ge: 'აღმოსავლეთის ალიანსი' },
   'faction.east.desc':      { en: 'Vast Eurasian territory & nuclear arsenal. Best defense, most nukes.', ru: 'Огромная евразийская территория и ядерный арсенал. Лучшая оборона, больше всего ракет.', ge: 'ვრცელი ევრაზიული ტერიტორია და ბირთვული არსენალი.' },
   'faction.china.name':     { en: 'Pacific Pact',         ru: 'Тихоокеанский пакт', ge: 'წყნარი ოკეანის პაქტი' },
-  'faction.china.desc':     { en: "World's largest army & Pacific dominance. Balanced stats, large starts.", ru: 'Крупнейшая армия мира и господство в Тихом океане. Сбалансированные характеристики.' },
+  'faction.china.desc':     { en: "World's largest army & Pacific dominance. Balanced stats, large starts.", ru: 'Крупнейшая армия мира и господство в Тихом океане. Сбалансированные характеристики.', ge: 'მსოფლიოს უდიდესი არმია და წყნარი ოკეანის სიძლიერე. დაბალანსებული.' },
 
   // ── CONFIRM DIALOGS ────────────────────────────────────────────────────────
   'confirm.attack.detail':  { en: 'Launch military assault on {region}. Victory is not guaranteed.', ru: 'Начать военную атаку на {region}. Победа не гарантирована.', ge: 'სამხედრო შეტევის გახსნა {region}-ზე. გამარჯვება გარანტირებული არ არის.' },
@@ -473,6 +473,29 @@ export const TRANSLATIONS = {
 
   'tut.done.title': { en: 'BRIEFING COMPLETE', ru: 'ИНСТРУКТАЖ ЗАВЕРШЁН', ge: 'ინსტრუქტაჟი დასრულდა' },
   'tut.done.body':  { en: 'You are ready, Commander. Expand early, balance economy with military, research before Act III, keep stability above 40%, and remember — diplomacy can win wars without a shot. Good luck.', ru: 'Вы готовы, Командир. Расширяйтесь, балансируйте экономику с армией, исследуйте до Акта III. Удачи.', ge: 'მზად ხართ, მეთაური. ადრე გაფართოვდით, შეაბალანსეთ ეკონომიკა სამხედრო ძალასთან. გამარჯვება გისურვებთ.' },
+
+  // ── TIER 3 — WEEKLY CHALLENGE ──────────────────────────────────────────────
+  'challenge.title':      { en: 'WEEKLY CHALLENGE',     ru: 'ЕЖЕНЕДЕЛЬНЫЙ ВЫЗОВ',        ge: 'კვირის გამოწვევა' },
+  'challenge.week':       { en: 'WEEK {n}',             ru: 'НЕДЕЛЯ {n}',                ge: 'კვირა {n}' },
+
+  // ── TIER 3 — REPUTATION ────────────────────────────────────────────────────
+  'rep.title':            { en: 'GLOBAL REPUTATION',    ru: 'ГЛОБАЛЬНАЯ РЕПУТАЦИЯ',      ge: 'გლობალური რეპუტაცია' },
+  'rep.pariah':           { en: 'WAR CRIMINAL',         ru: 'ВОЕННЫЙ ПРЕСТУПНИК',        ge: 'სამხედრო დამნაშავე' },
+  'rep.respected':        { en: 'RESPECTED',            ru: 'УВАЖАЕМЫЙ',                 ge: 'პატივსაცემი' },
+
+  // ── TIER 3 — COMMANDER RANK ────────────────────────────────────────────────
+  'rank.title':           { en: 'COMMANDER RANK',       ru: 'ЗВАНИЕ КОМАНДИРА',          ge: 'მეთაურის წოდება' },
+  'rank.xp':              { en: '{n} XP',               ru: '{n} ОП',                    ge: '{n} გამოცდ.' },
+  'rank.rankUp':          { en: 'RANK UP!',             ru: 'ПОВЫШЕНИЕ ЗВАНИЯ!',         ge: 'წოდება ამაღლდა!' },
+
+  // ── TIER 3 — DEBRIEF ───────────────────────────────────────────────────────
+  'debrief.title':        { en: 'CAMPAIGN DEBRIEF',     ru: 'РАЗБОР КАМПАНИИ',           ge: 'კამპანიის ანალიზი' },
+  'debrief.timeline':     { en: 'CAMPAIGN TIMELINE',    ru: 'ХРОНОЛОГИЯ КАМПАНИИ',       ge: 'კამპანიის ქრონოლოგია' },
+  'debrief.stats':        { en: 'CAMPAIGN STATISTICS',  ru: 'СТАТИСТИКА КАМПАНИИ',       ge: 'კამპანიის სტატისტიკა' },
+
+  // ── TIER 3 — EVENT CHOICES ─────────────────────────────────────────────────
+  'event.choice.title':   { en: 'WORLD EVENT',          ru: 'МИРОВОЕ СОБЫТИЕ',           ge: 'მსოფლიო მოვლენა' },
+  'event.choice.dismiss': { en: 'DISMISS',              ru: 'ЗАКРЫТЬ',                   ge: 'დახურვა' },
 
 };
 

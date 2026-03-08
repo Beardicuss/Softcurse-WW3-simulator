@@ -40,21 +40,66 @@ export const WORLD_EVENTS = [
     {
         id: 'oil_price_spike',
         title: 'Global Oil Price Spike',
-        desc: 'International markets reel as oil prices triple overnight. All factions\' operational costs surge.',
+        desc: 'International markets reel as oil prices triple overnight. All factions\' operational costs surge. How do you respond?',
         severity: 'high',
         weight: 8,
         cooldown: 15,
         trigger: (state) => state.turn > 5,
+        choices: [
+            {
+                id: 'oil_subsidize',
+                label: '💰 Subsidize fuel costs',
+                desc: '-$400 but protect your oil reserves',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const newFactions = { ...factions };
+                    Object.keys(newFactions).forEach(fk => {
+                        newFactions[fk] = { ...newFactions[fk], oil: Math.max(0, (newFactions[fk].oil || 0) - 120) };
+                    });
+                    newFactions[playerFaction] = { ...newFactions[playerFaction],
+                        oil: (factions[playerFaction].oil || 0),
+                        funds: Math.max(0, (newFactions[playerFaction].funds || 0) - 400),
+                    };
+                    return { factions: newFactions, regions, log: '📈 OIL CRISIS: You subsidize fuel costs (-$400) — your oil reserves protected.' };
+                },
+            },
+            {
+                id: 'oil_ration',
+                label: '⚙ Ration military fuel',
+                desc: 'Stability -8 but save funds',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const newFactions = { ...factions };
+                    Object.keys(newFactions).forEach(fk => {
+                        newFactions[fk] = { ...newFactions[fk], oil: Math.max(0, (newFactions[fk].oil || 0) - 120) };
+                    });
+                    newFactions[playerFaction] = { ...newFactions[playerFaction],
+                        stability: Math.max(0, (newFactions[playerFaction].stability || 100) - 8),
+                    };
+                    return { factions: newFactions, regions, log: '📈 OIL CRISIS: Rationing imposed — stability -8 but funds preserved.' };
+                },
+            },
+            {
+                id: 'oil_profiteer',
+                label: '🛢 Sell strategic reserves',
+                desc: '+$600 but oil -200',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const newFactions = { ...factions };
+                    Object.keys(newFactions).forEach(fk => {
+                        newFactions[fk] = { ...newFactions[fk], oil: Math.max(0, (newFactions[fk].oil || 0) - 120) };
+                    });
+                    newFactions[playerFaction] = { ...newFactions[playerFaction],
+                        oil: Math.max(0, (factions[playerFaction].oil || 0) - 200),
+                        funds: (newFactions[playerFaction].funds || 0) + 600,
+                    };
+                    return { factions: newFactions, regions, log: '📈 OIL CRISIS: You sell reserves for profit — +$600 but oil critically depleted.' };
+                },
+            },
+        ],
         effect: ({ factions, regions, playerFaction }) => {
             const newFactions = { ...factions };
             Object.keys(newFactions).forEach(fk => {
                 newFactions[fk] = { ...newFactions[fk], oil: Math.max(0, (newFactions[fk].oil || 0) - 120) };
             });
-            return {
-                factions: newFactions,
-                regions,
-                log: '📈 OIL CRISIS: Global oil prices surge — all factions lose 120 oil reserves.',
-            };
+            return { factions: newFactions, regions, log: '📈 OIL CRISIS: Global oil prices surge — all factions lose 120 oil reserves.' };
         },
     },
 
@@ -578,6 +623,7 @@ export function processWorldEvents(state, firedEvents = {}) {
     return {
         updatedFactions:    curFactions,
         updatedRegions:     curRegions,
+        reputationDelta:    fired.reduce((sum, ev) => sum + (ev.reputationDelta || 0), 0),
         eventLog,
         updatedFiredEvents: newFiredEvents,
     };
@@ -928,9 +974,36 @@ WORLD_EVENTS.push(
         weight: 5,
         cooldown: 22,
         trigger: (state) => state.actPhase >= 2 && state.turn > 15,
+        choices: [
+            {
+                id: 'un_comply',
+                label: '🕊 Comply publicly',
+                desc: 'Stability +15, reputation +10',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const nf = { ...factions };
+                    nf[playerFaction] = { ...nf[playerFaction], stability: Math.min(100,(nf[playerFaction].stability||100)+15) };
+                    return { factions: nf, regions, log: '🕊 UN RESOLUTION: You comply — stability +15, global standing improves.', reputationDelta: 10 };
+                },
+            },
+            {
+                id: 'un_ignore',
+                label: '🚫 Ignore it',
+                desc: 'No war effect, reputation -15',
+                effect: ({ factions, regions }) => ({ factions, regions, log: '🚫 UN RESOLUTION: You ignore the ceasefire — war continues.', reputationDelta: -15 }),
+            },
+            {
+                id: 'un_exploit',
+                label: '🎭 Feign compliance',
+                desc: 'Reputation +5, +2 spy charges',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const nf = { ...factions };
+                    nf[playerFaction] = { ...nf[playerFaction], spyCharges: (nf[playerFaction].spyCharges||0)+2 };
+                    return { factions: nf, regions, log: '🎭 UN FEINT: Covert operatives deployed under cover of compliance.', reputationDelta: 5 };
+                },
+            },
+        ],
         effect: ({ factions, regions, playerFaction }) => {
             const newFactions = { ...factions };
-            // All factions get a small stability boost (peace pressure)
             Object.keys(newFactions).forEach(fk => {
                 newFactions[fk] = { ...newFactions[fk], stability: Math.min(100, (newFactions[fk].stability || 100) + 5) };
             });
@@ -996,9 +1069,36 @@ WORLD_EVENTS.push(
         weight: 3,
         cooldown: 25,
         trigger: (state) => state.actPhase >= 2 && state.turn > 18,
+        choices: [
+            {
+                id: 'nuke_counter_test',
+                label: '☢ Conduct counter-test',
+                desc: '+1 nuke, reputation -20',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const nf = { ...factions };
+                    nf[playerFaction] = { ...nf[playerFaction], nukes: (nf[playerFaction].nukes||0)+1 };
+                    return { factions: nf, regions, log: '☢ NUCLEAR COUNTER-TEST: +1 tactical nuke. Global alarm spikes.', reputationDelta: -20 };
+                },
+            },
+            {
+                id: 'nuke_sanctions',
+                label: '📜 Push for sanctions',
+                desc: '+$300, reputation +10',
+                effect: ({ factions, regions, playerFaction }) => {
+                    const nf = { ...factions };
+                    nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+300 };
+                    return { factions: nf, regions, log: '📜 NUCLEAR SANCTIONS: Coalition forms — +$300 allied support.', reputationDelta: 10 };
+                },
+            },
+            {
+                id: 'nuke_silence',
+                label: '😶 Say nothing',
+                desc: 'No cost or gain',
+                effect: ({ factions, regions }) => ({ factions, regions, log: '😶 NUCLEAR TEST: Strategic silence noted by all parties.', reputationDelta: 0 }),
+            },
+        ],
         effect: ({ factions, regions, playerFaction }) => {
             const newFactions = { ...factions };
-            // All factions destabilised by nuclear sabre-rattling
             Object.keys(newFactions).forEach(fk => {
                 newFactions[fk] = { ...newFactions[fk], stability: Math.max(0, (newFactions[fk].stability || 100) - 10) };
             });
@@ -1087,3 +1187,269 @@ WORLD_EVENTS.push(
     },
 
 );
+
+
+// ─── FACTION-SPECIFIC STORY EVENTS ───────────────────────────────────────────
+export const FACTION_STORY_EVENTS = {
+
+    NATO: [
+        {
+            id: 'nato_article5',
+            title: 'Article 5 Invoked',
+            desc: 'A NATO member state has been attacked. The alliance demands you honor Article 5 and commit forces.',
+            turn: 6,
+            choices: [
+                { id: 'honor', label: '🛡 Honor the commitment', desc: 'Reputation +20, deploy forces to member state',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: Math.max(0, (nf[playerFaction].funds||0)-300) };
+                      return { factions: nf, regions, log: '🛡 ARTICLE 5: Forces deployed. Alliance cohesion strengthened.', reputationDelta: 20 };
+                  }},
+                { id: 'stall', label: '🕰 Delay with diplomacy', desc: 'No cost, reputation -5',
+                  effect: ({ factions, regions, playerFaction }) => ({ factions, regions, log: '🕰 ARTICLE 5: Diplomatic stalling buys time — allies grow nervous.', reputationDelta: -5 }) },
+            ],
+        },
+        {
+            id: 'nato_tech_lead',
+            title: 'Silicon Valley Goes to War',
+            desc: 'Major tech corporations offer advanced AI targeting systems to NATO forces exclusively.',
+            turn: 10,
+            choices: [
+                { id: 'accept_ai', label: '🤖 Accept AI systems', desc: '+2 tech points, reputation -5 (militarization concerns)',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], techPoints: (nf[playerFaction].techPoints||0)+2 };
+                      return { factions: nf, regions, log: '🤖 AI INTEGRATION: Silicon Valley tech boosts NATO firepower — +2 tech points.', reputationDelta: -5 };
+                  }},
+                { id: 'reject_ai', label: '🚫 Reject (public backlash risk)', desc: 'Stability +5, no tech',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], stability: Math.min(100, (nf[playerFaction].stability||100)+5) };
+                      return { factions: nf, regions, log: '🚫 AI REJECTED: Public relief at restraint — stability +5.', reputationDelta: 10 };
+                  }},
+            ],
+        },
+        {
+            id: 'nato_internal_crisis',
+            title: 'Alliance Fractures',
+            desc: 'A key NATO member threatens to withdraw over strategic disagreements.',
+            turn: 16,
+            choices: [
+                { id: 'buy_loyalty', label: '💰 Buy loyalty with aid', desc: '-$500, member stays',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: Math.max(0,(nf[playerFaction].funds||0)-500), stability: Math.min(100,(nf[playerFaction].stability||100)+8) };
+                      return { factions: nf, regions, log: '💰 ALLIANCE HELD: Emergency aid package preserves NATO unity.', reputationDelta: 5 };
+                  }},
+                { id: 'let_leave', label: '🚶 Let them leave', desc: '-2 regions to neutral, stability -10',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nr = { ...regions };
+                      const ownedNATO = Object.keys(nr).filter(r => nr[r].faction === playerFaction);
+                      if (ownedNATO.length > 3) nr[ownedNATO[Math.floor(Math.random()*ownedNATO.length)]] = { ...nr[ownedNATO[0]], faction: 'NEUTRAL' };
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], stability: Math.max(0,(nf[playerFaction].stability||100)-10) };
+                      return { factions: nf, regions: nr, log: '🚶 ALLIANCE FRACTURES: Member withdraws — territory lost, stability -10.' };
+                  }},
+            ],
+        },
+    ],
+
+    EAST: [
+        {
+            id: 'east_wagner',
+            title: 'Private Military Contractors',
+            desc: 'Mercenary forces offer their services — high capability, high cost, zero accountability.',
+            turn: 5,
+            choices: [
+                { id: 'hire_wagner', label: '⚔ Hire the mercenaries', desc: '+8 infantry in 3 regions, reputation -15',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nr = { ...regions };
+                      const owned = Object.keys(nr).filter(r => nr[r].faction === playerFaction).slice(0,3);
+                      owned.forEach(r => { nr[r] = { ...nr[r], infantry: (nr[r].infantry||0)+8 }; });
+                      return { factions, regions: nr, log: '⚔ MERCENARIES DEPLOYED: Private forces boost 3 regions — +8 infantry each.', reputationDelta: -15 };
+                  }},
+                { id: 'reject_wagner', label: '🚫 Rely on regular forces', desc: 'Reputation neutral, supply +100',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], supplies: (nf[playerFaction].supplies||0)+100 };
+                      return { factions: nf, regions, log: '🚫 MERCS REFUSED: Regular forces receive priority resupply — +100 supplies.', reputationDelta: 5 };
+                  }},
+            ],
+        },
+        {
+            id: 'east_energy_weapon',
+            title: 'Energy as a Weapon',
+            desc: 'Your advisors suggest cutting gas supplies to European regions — devastating economically, internationally condemned.',
+            turn: 8,
+            choices: [
+                { id: 'cut_gas', label: '🔌 Cut energy supplies', desc: 'Enemy economy -40 in 4 regions, reputation -25',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nr = { ...regions };
+                      ['germany','france','poland','ukraine'].forEach(r => {
+                          if (nr[r] && nr[r].faction !== playerFaction) nr[r] = { ...nr[r], economy: Math.max(10,(nr[r].economy||50)-40) };
+                      });
+                      return { factions, regions: nr, log: '🔌 ENERGY WEAPON: Gas cutoff cripples European economies.', reputationDelta: -25 };
+                  }},
+                { id: 'keep_gas', label: '🤝 Maintain supply (leverage)', desc: '+$400 in gas revenues',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+400 };
+                      return { factions: nf, regions, log: '🤝 ENERGY LEVERAGE: Continued supply earns +$400 — and goodwill.', reputationDelta: 8 };
+                  }},
+            ],
+        },
+        {
+            id: 'east_nuclear_doctrine',
+            title: 'Nuclear Doctrine Review',
+            desc: 'Military command proposes lowering the threshold for tactical nuclear use.',
+            turn: 14,
+            choices: [
+                { id: 'lower_threshold', label: '☢ Approve new doctrine', desc: '+2 nukes, all factions gain +5% fear modifier',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], nukes: (nf[playerFaction].nukes||0)+2 };
+                      return { factions: nf, regions, log: '☢ NUCLEAR DOCTRINE: Lowered threshold approved — +2 tactical nukes. World on edge.', reputationDelta: -30 };
+                  }},
+                { id: 'maintain_doctrine', label: '📋 Maintain existing doctrine', desc: 'Stability +10, no escalation',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], stability: Math.min(100,(nf[playerFaction].stability||100)+10) };
+                      return { factions: nf, regions, log: '📋 DOCTRINE HELD: Stability maintained. Strategic restraint noted globally.', reputationDelta: 15 };
+                  }},
+            ],
+        },
+    ],
+
+    CHINA: [
+        {
+            id: 'china_taiwan_ultimatum',
+            title: 'Taiwan Ultimatum',
+            desc: 'Military command recommends issuing a final ultimatum to Taiwan. The world watches.',
+            turn: 6,
+            choices: [
+                { id: 'issue_ultimatum', label: '📢 Issue the ultimatum', desc: 'Taiwan stability -50, USA enters alert',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nr = { ...regions };
+                      if (nr.taiwan) nr.taiwan = { ...nr.taiwan, stability: Math.max(0,(nr.taiwan.stability||100)-50) };
+                      const nf = { ...factions };
+                      if (nf.NATO) nf.NATO = { ...nf.NATO, stability: Math.max(0,(nf.NATO.stability||100)-10) };
+                      return { factions: nf, regions: nr, log: '📢 TAIWAN ULTIMATUM: Crisis escalates — Taiwan destabilized, NATO on alert.', reputationDelta: -20 };
+                  }},
+                { id: 'back_down', label: '🕊 Strategic patience', desc: '+$500 trade, reputation +10',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+500 };
+                      return { factions: nf, regions, log: '🕊 STRATEGIC PATIENCE: Trade continues — +$500 in economic activity.', reputationDelta: 10 };
+                  }},
+            ],
+        },
+        {
+            id: 'china_belt_road',
+            title: 'Belt & Road Leverage',
+            desc: 'Debtor nations offer military access in exchange for debt relief.',
+            turn: 9,
+            choices: [
+                { id: 'accept_bases', label: '🏗 Accept military access', desc: '+1 guerrilla in 4 foreign regions',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nr = { ...regions };
+                      const neutral = Object.keys(nr).filter(r => nr[r].faction === 'NEUTRAL').slice(0,4);
+                      neutral.forEach(r => { nr[r] = { ...nr[r], guerrilla: (nr[r].guerrilla||0)+1, faction: playerFaction }; });
+                      return { factions, regions: nr, log: '🏗 BELT & ROAD: Debtor nations open bases — 4 neutral regions absorbed.', reputationDelta: -5 };
+                  }},
+                { id: 'cancel_debt', label: '💸 Cancel debt (goodwill)', desc: '-$300, +15 stability',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: Math.max(0,(nf[playerFaction].funds||0)-300), stability: Math.min(100,(nf[playerFaction].stability||100)+15) };
+                      return { factions: nf, regions, log: '💸 DEBT CANCELLED: Goodwill surge across developing world — stability +15.', reputationDelta: 15 };
+                  }},
+            ],
+        },
+    ],
+
+    INDIA: [
+        {
+            id: 'india_non_aligned',
+            title: 'Non-Alignment Legacy',
+            desc: 'Your historic non-aligned status gives leverage — both sides court India.',
+            turn: 5,
+            choices: [
+                { id: 'sell_neutrality', label: '🤝 Play both sides', desc: '+$600 from both blocs, reputation -10',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+600 };
+                      return { factions: nf, regions, log: '🤝 DIPLOMATIC PIVOT: Both superpowers court India — +$600.', reputationDelta: -10 };
+                  }},
+                { id: 'true_neutral', label: '⚖ Declare neutrality', desc: 'Stability +20, no war crime penalties ever',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], stability: Math.min(100,(nf[playerFaction].stability||100)+20) };
+                      return { factions: nf, regions, log: '⚖ NEUTRALITY DECLARED: India steps back — massive stability boost.', reputationDelta: 20 };
+                  }},
+            ],
+        },
+        {
+            id: 'india_space_program',
+            title: 'Satellite Strike Capability',
+            desc: 'ISRO has developed dual-use satellites that can target enemy infrastructure.',
+            turn: 12,
+            choices: [
+                { id: 'militarize_space', label: '🛸 Weaponize satellites', desc: '+1 orbital strike charge, reputation -10',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], orbitalCharges: (nf[playerFaction].orbitalCharges||0)+1 };
+                      return { factions: nf, regions, log: '🛸 SPACE WEAPONS: ISRO satellites repurposed for war — +1 orbital charge.', reputationDelta: -10 };
+                  }},
+                { id: 'keep_peaceful', label: '🔭 Keep space peaceful', desc: '+2 tech points',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], techPoints: (nf[playerFaction].techPoints||0)+2 };
+                      return { factions: nf, regions, log: '🔭 PEACEFUL SPACE: Scientific focus earns +2 tech points.', reputationDelta: 10 };
+                  }},
+            ],
+        },
+    ],
+
+    LATAM: [
+        {
+            id: 'latam_cartel_alliance',
+            title: 'Cartel Networks',
+            desc: 'Criminal organizations offer covert logistics and intelligence in exchange for political protection.',
+            turn: 4,
+            choices: [
+                { id: 'accept_cartels', label: '💊 Accept cartel support', desc: '+$500 + spy charges, stability -15, reputation -20',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+500, spyCharges: (nf[playerFaction].spyCharges||0)+3, stability: Math.max(0,(nf[playerFaction].stability||100)-15) };
+                      return { factions: nf, regions, log: '💊 CARTEL ALLIANCE: Covert networks activated — +$500, +3 spy charges. Stability crumbles.', reputationDelta: -20 };
+                  }},
+                { id: 'reject_cartels', label: '🚓 Refuse and crack down', desc: 'Reputation +15, stability +5',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], stability: Math.min(100,(nf[playerFaction].stability||100)+5) };
+                      return { factions: nf, regions, log: '🚓 CARTELS REFUSED: Public crackdown earns legitimacy — stability +5.', reputationDelta: 15 };
+                  }},
+            ],
+        },
+        {
+            id: 'latam_resource_curse',
+            title: 'Resource Windfall',
+            desc: 'Vast new lithium deposits discovered. Global powers demand access. What is your price?',
+            turn: 8,
+            choices: [
+                { id: 'nationalize', label: '🏭 Nationalize deposits', desc: '+oil +economy, reputation +5',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], oil: (nf[playerFaction].oil||0)+200, funds: (nf[playerFaction].funds||0)+400 };
+                      return { factions: nf, regions, log: '🏭 NATIONALIZATION: Lithium reserves nationalized — +200 oil, +$400.', reputationDelta: 5 };
+                  }},
+                { id: 'sell_rights', label: '🤝 Sell extraction rights', desc: '+$1000 immediate, economy dependency',
+                  effect: ({ factions, regions, playerFaction }) => {
+                      const nf = { ...factions };
+                      nf[playerFaction] = { ...nf[playerFaction], funds: (nf[playerFaction].funds||0)+1000, stability: Math.max(0,(nf[playerFaction].stability||100)-5) };
+                      return { factions: nf, regions, log: '🤝 RESOURCE DEAL: Foreign corporations pay handsomely — +$1000.', reputationDelta: -5 };
+                  }},
+            ],
+        },
+    ],
+};
+

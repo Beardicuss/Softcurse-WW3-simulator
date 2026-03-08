@@ -7,13 +7,15 @@
     "icon": "./assets/ww3.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true
     },
     "androidStatusBar": {
-      "hidden": true
+      "hidden": true,
+      "translucent": true,
+      "backgroundColor": "#00000000"
     },
     "androidNavigationBar": {
       "visible": "sticky-immersive"
@@ -32,6 +34,7 @@
       "eas": {
         "projectId": "e2f83ff4-d0ec-477e-9d0e-36710ef4da78"
       }
-    }
+    },
+    "backgroundColor": "#000000"
   }
 }

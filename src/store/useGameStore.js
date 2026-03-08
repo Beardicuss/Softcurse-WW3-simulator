@@ -13,7 +13,7 @@ import { runNightmareAI, recordAILoss, findHegemon } from '../logic/aiLogic';
 import { rollWeather, getWeather, COASTAL_REGIONS } from '../logic/gameLogic';
 import { ADJ, FD, REGIONS, getTerrain } from '../data/mapData';
 import { TECH_BY_ID, TECH_NODES, isExcluded, computeTechModifiers } from '../data/techTree';
-import { processWorldEvents } from '../logic/eventSystem';
+import { processWorldEvents, FACTION_STORY_EVENTS } from '../logic/eventSystem';
 import { evaluateMissions, applyMissionReward, CAMPAIGN_MISSIONS } from '../logic/campaignMissions';
 import { _setLang, translate } from '../i18n/i18n';
 import { checkAchievements } from '../logic/achievements';
@@ -38,6 +38,40 @@ function tl(key, vars = {}) {
 let getStore = null; // assigned after store creation
 let _langUnsubscribe = null;
 
+
+const META_KEY = '@ww3_commander_meta';
+
+export const COMMANDER_RANKS = [
+    { rank: 0, title: 'RECRUIT',         xpRequired: 0,    badge: '🪖' },
+    { rank: 1, title: 'CORPORAL',        xpRequired: 100,  badge: '⭐' },
+    { rank: 2, title: 'SERGEANT',        xpRequired: 250,  badge: '🌟' },
+    { rank: 3, title: 'LIEUTENANT',      xpRequired: 500,  badge: '🎖' },
+    { rank: 4, title: 'CAPTAIN',         xpRequired: 900,  badge: '🏅' },
+    { rank: 5, title: 'MAJOR',           xpRequired: 1500, badge: '🥇' },
+    { rank: 6, title: 'COLONEL',         xpRequired: 2500, badge: '🎗' },
+    { rank: 7, title: 'BRIGADIER',       xpRequired: 4000, badge: '🦅' },
+    { rank: 8, title: 'GENERAL',         xpRequired: 6000, badge: '⚔' },
+    { rank: 9, title: 'SUPREME COMMANDER', xpRequired: 10000, badge: '☢' },
+];
+
+export function getRankFromXP(xp) {
+    let rank = COMMANDER_RANKS[0];
+    for (const r of COMMANDER_RANKS) {
+        if (xp >= r.xpRequired) rank = r;
+    }
+    return rank;
+}
+
+export function calcMatchXP(trackedStats, gameOverReason) {
+    let xp = 0;
+    xp += (trackedStats?.totalCaptures  || 0) * 8;
+    xp += (trackedStats?.attacksWon     || 0) * 5;
+    xp += (trackedStats?.turnsPlayed    || 0) * 2;
+    if (gameOverReason === 'victory')  xp += 300;
+    if (gameOverReason === 'nuclear')  xp -= 50;
+    return Math.max(0, xp);
+}
+
 const useGameStore = create((set, get) => ({
     // State
     uiMode: 'SPLASH', // SPLASH, INTRO, MENU, FACTION, GAME
@@ -58,6 +92,12 @@ const useGameStore = create((set, get) => ({
     nukeUsedThisTurn: false,
     // Nightmare AI persistent memory — one object per AI faction
     aiMemory: { EAST: {}, CHINA: {}, INDIA: {}, LATAM: {} },
+    // Global reputation (-100 to +100). Affects diplomacy acceptance rates, event triggers
+    reputation: 50,
+    // Active weekly challenge modifiers for this run (set on startGame)
+    activeChallenge: null,  // { modifiers: [...] } | null
+    // Debrief: key moments recorded during play for post-game timeline
+    debriefLog: [],   // [{ turn, type, desc }]
     // Diplomacy state
     diplomacy: {
         // peaceTreaties: { 'NATO-EAST': { turnsLeft: 5 }, ... }
@@ -115,7 +155,8 @@ const useGameStore = create((set, get) => ({
 
     // ── ACHIEVEMENTS ─────────────────────────────────────────────────────────
     achievements: {},          // { achievementId: { unlockedAt: turn, seen: false } }
-    leaderboard: [],           // [{ faction, score, turns, reason, date }] last 10 runs
+    leaderboard: [],
+    commanderMeta: { xp: 0, rank: 0 },  // persists across sessions           // [{ faction, score, turns, reason, date }] last 10 runs
     newlyCompletedMissions: [], // missions completed this turn, shown in UI
 
     // Weather System
@@ -302,12 +343,59 @@ const useGameStore = create((set, get) => ({
             });
         }
 
+        // ── Apply weekly challenge modifiers ─────────────────────────────────
+        const challenge = getWeeklyChallenge();
+        const mods = challenge.modifiers.map(m => m.effect);
+
+        // fog_extreme: only own regions visible (no adjacent reveal on start)
+        // handled in fog block below via isFogExtreme flag
+
+        // eco_half: all region economies start at 50%
+        if (mods.includes('eco_half')) {
+            Object.keys(rs).forEach(rid => {
+                rs[rid].economy = Math.floor((rs[rid].economy || 50) * 0.5);
+            });
+        }
+
+        // extra_nukes: all factions start with +3 nukes
+        if (mods.includes('extra_nukes')) {
+            Object.keys(fs).forEach(fk => {
+                fs[fk].nukes = (fs[fk].nukes || 0) + 3;
+            });
+        }
+
+        // supply_half: reduce starting supplies by 50%
+        if (mods.includes('supply_half')) {
+            Object.keys(fs).forEach(fk => {
+                fs[fk].supplies = Math.floor((fs[fk].supplies || 0) * 0.5);
+            });
+        }
+
+        // guerrilla_only: strip all armor/air/bombers, convert to guerrillas
+        if (mods.includes('guerrilla_only')) {
+            Object.keys(rs).forEach(rid => {
+                if (rs[rid].faction !== 'NEUTRAL') {
+                    rs[rid].guerrilla = (rs[rid].guerrilla || 0) + (rs[rid].armor || 0) + (rs[rid].air || 0) + (rs[rid].bomber || 0);
+                    rs[rid].armor = 0;
+                    rs[rid].air = 0;
+                    rs[rid].bomber = 0;
+                }
+            });
+        }
+
+        const isFogExtreme  = mods.includes('fog_extreme');
+        const isNoNukes     = mods.includes('no_nukes');
+        const isFastTurns   = mods.includes('fast_turns');
+        const isLowVictory  = mods.includes('low_victory');
+
         // Compute initial fog of war
         const initVisible = new Set();
         Object.entries(rs).forEach(([id, r]) => {
             if (r.faction === faction) {
                 initVisible.add(id);
-                (ADJ[id] || []).forEach(adjId => initVisible.add(adjId));
+                if (!isFogExtreme) {
+                    (ADJ[id] || []).forEach(adjId => initVisible.add(adjId));
+                }
             }
         });
 
@@ -325,7 +413,9 @@ const useGameStore = create((set, get) => ({
             actEvents: [],
             firedEvents: {},
             activeEventLog: [],
-            selectedRegionId: null
+            selectedRegionId: null,
+            activeChallenge: { modifiers: challenge.modifiers, effects: mods },
+            debriefLog: [],
         });
 
         // Auto-save on new game
@@ -559,6 +649,29 @@ const useGameStore = create((set, get) => ({
         };
     },
 
+
+    // ── COMMANDER META-PROGRESSION ──────────────────────────────────────────────
+    loadCommanderMeta: async () => {
+        try {
+            const raw = await AsyncStorage.getItem(META_KEY);
+            if (raw) {
+                const meta = JSON.parse(raw);
+                set({ commanderMeta: meta });
+            }
+        } catch (e) { console.warn('loadCommanderMeta failed:', e); }
+    },
+    saveCommanderMeta: async (xpGained) => {
+        const state = get();
+        const current = state.commanderMeta || { xp: 0, rank: 0 };
+        const newXP   = current.xp + xpGained;
+        const newRank = getRankFromXP(newXP);
+        const updated = { xp: newXP, rank: newRank.rank };
+        set({ commanderMeta: updated });
+        try { await AsyncStorage.setItem(META_KEY, JSON.stringify(updated)); }
+        catch (e) { console.warn('saveCommanderMeta failed:', e); }
+        return { xpGained, newRank, rankUp: newRank.rank > current.rank };
+    },
+
     clearUndoSnapshot: () => set({ undoSnapshot: null, undoLabel: null }),
 
     attack: (fromId, toId) => {
@@ -717,6 +830,7 @@ const useGameStore = create((set, get) => ({
         const newFactions = { ...state.factions };
         const newLog = [...state.gameLog];
 
+        let reputationDeltaThisTurn = 0;
         // 1. Advance date (1 week)
         const newDate = new Date(state.date);
         newDate.setDate(newDate.getDate() + 7);
@@ -741,7 +855,8 @@ const useGameStore = create((set, get) => ({
             const fac = newFactions[fk];
             fac.funds += income;
             fac.oil += oilProd;
-            fac.supplies += Math.floor(income / 2);
+            const supplyHalf = (state.activeChallenge?.effects || []).includes('supply_half');
+            fac.supplies += supplyHalf ? Math.floor(income / 4) : Math.floor(income / 2);
 
             // Tech: earn 1 research point every 3 turns
             if (state.turn % 3 === 0) {
@@ -878,6 +993,8 @@ const useGameStore = create((set, get) => ({
         eventResult.eventLog.forEach(msg => newLog.unshift(msg));
         const newFiredEvents = eventResult.updatedFiredEvents;
         const newActiveEventLog = [...eventResult.eventLog, ...(state.activeEventLog || [])].slice(0, 4);
+        // Accumulate reputation delta from auto-fired events
+        reputationDeltaThisTurn += (eventResult.reputationDelta || 0);
 
         // 2.8 Mission Evaluation
         const missionResult = evaluateMissions(
@@ -900,11 +1017,14 @@ const useGameStore = create((set, get) => ({
         newFactions = missionFactions;
 
         // 2.9 Fog of War — recompute visible regions for player
+        const fogExtreme = (state.activeChallenge?.effects || []).includes('fog_extreme');
         const newVisible = new Set();
         Object.entries(newRegions).forEach(([id, r]) => {
             if (r.faction === state.playerFaction) {
                 newVisible.add(id);
-                (ADJ[id] || []).forEach(adjId => newVisible.add(adjId));
+                if (!fogExtreme) {
+                    (ADJ[id] || []).forEach(adjId => newVisible.add(adjId));
+                }
             }
         });
 
@@ -1047,6 +1167,7 @@ const useGameStore = create((set, get) => ({
                     newRegions[m.to]   = { ...to, faction: aiKey, ...remaining, stability: 50 };
                     newRegions[m.from] = { ...from, infantry: 1, armor: 0, air: 0 };
                     newLog.unshift(tl('log.strategicLoss', { region: m.to.toUpperCase(), faction: FD[aiKey].short }));
+                    // Don't record AI captures in debrief — only player moments
                 } else {
                     // Record loss in AI memory — it will avoid this target next time
                     updatedMemory.recentLosses = updatedMemory.recentLosses || {};
@@ -1139,7 +1260,8 @@ const useGameStore = create((set, get) => ({
         const startingRegionCount = Object.keys(FD[state.playerFaction]?.starts || {}).length || 4;
         const regionsLost = startingRegionCount - pRegionsCount;
         if (newActPhase === 1) {
-            const act2TurnTrigger = state.gameMode === 'blitz' ? 8 : 15;
+            const isFastTurnsChallenge = (state.activeChallenge?.effects || []).includes('fast_turns');
+            const act2TurnTrigger = isFastTurnsChallenge ? 6 : state.gameMode === 'blitz' ? 8 : 15;
             const act2Trigger =
                 state.turn >= act2TurnTrigger ||
                 regionsLost >= Math.ceil(startingRegionCount * 0.25) ||
@@ -1179,7 +1301,10 @@ const useGameStore = create((set, get) => ({
 
         // ── VICTORY CHECK ─────────────────────────────────────────────────
         // Player wins by controlling >60% of all regions
-        const victoryThreshold = state.gameMode === 'blitz' ? Math.ceil(totalRegions * 0.40) : Math.ceil(totalRegions * 0.60);
+        const isLowVictoryChallenge = (state.activeChallenge?.effects || []).includes('low_victory');
+        const victoryThreshold = isLowVictoryChallenge
+            ? Math.ceil(totalRegions * 0.40)
+            : state.gameMode === 'blitz' ? Math.ceil(totalRegions * 0.40) : Math.ceil(totalRegions * 0.60);
         if (pRegionsCount >= victoryThreshold) {
             set({
                 regions: newRegions, factions: newFactions,
@@ -1269,6 +1394,7 @@ const useGameStore = create((set, get) => ({
             nukeUsedThisTurn: false,
             aiMemory: newAIMemory,
             diplomacy: newDiplomacy,
+            reputation: Math.max(-100, Math.min(100, (state.reputation ?? 50) + (reputationDeltaThisTurn || 0))),
             actPhase: newActPhase,
             actEvents: newActEvents,
             firedEvents: newFiredEvents,
@@ -1318,6 +1444,9 @@ const useGameStore = create((set, get) => ({
         }
 
         // One nuke per turn
+        if ((state.activeChallenge?.effects || []).includes('no_nukes')) {
+            return tl('log.nukeFail') || 'Nuclear weapons are disabled this week.';
+        }
         if (state.nukeUsedThisTurn) {
             set({ gameLog: [tl('log.nuclearAlreadyUsed'), ...state.gameLog].slice(0, 8) });
             return;
@@ -1634,6 +1763,40 @@ _setLang(useGameStore.getState()?.settings?.language || 'en');
 useGameStore.subscribe(state => {
     _setLang(state?.settings?.language || 'en');
 });
+
+
+// ─── WEEKLY CHALLENGE SYSTEM ──────────────────────────────────────────────────
+// Seed = ISO week number. Same seed = same challenge for all players that week.
+export function getWeeklyChallenge() {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNum = Math.floor((now - startOfYear) / (7 * 24 * 3600 * 1000));
+    const seed = now.getFullYear() * 100 + weekNum;
+
+    // Seeded random (simple LCG)
+    let s = seed;
+    const rand = () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+
+    const MODIFIERS = [
+        { id: 'iron_curtain',    label: '🧱 Iron Curtain',       desc: 'Fog of war covers all non-adjacent regions',      effect: 'fog_extreme'    },
+        { id: 'scorched_earth',  label: '🔥 Scorched Earth',     desc: 'All regions start with 50% economy',              effect: 'eco_half'       },
+        { id: 'nuclear_age',     label: '☢ Nuclear Age',         desc: 'All factions start with +3 nukes',                effect: 'extra_nukes'    },
+        { id: 'blitz_war',       label: '⚡ Blitz War',          desc: 'Victory at 40% territory instead of 60%',         effect: 'low_victory'    },
+        { id: 'supply_crisis',   label: '📦 Supply Crisis',      desc: 'All supply generation halved',                    effect: 'supply_half'    },
+        { id: 'no_nukes',        label: '🕊 No First Strike',    desc: 'Nuclear weapons disabled',                        effect: 'no_nukes'       },
+        { id: 'guerrilla_age',   label: '🪖 Guerrilla Age',      desc: 'All units start as guerrillas, no armor/air',     effect: 'guerrilla_only' },
+        { id: 'fast_war',        label: '💨 Fast War',           desc: 'Each turn = 2 weeks. Victory in 20 turns.',       effect: 'fast_turns'     },
+    ];
+
+    const picks = Math.floor(rand() * 2) + 1; // 1 or 2 modifiers
+    const selected = [];
+    for (let i = 0; i < picks; i++) {
+        const idx = Math.floor(rand() * MODIFIERS.length);
+        if (!selected.find(m => m.id === MODIFIERS[idx].id)) selected.push(MODIFIERS[idx]);
+    }
+
+    return { seed, weekNum, year: now.getFullYear(), modifiers: selected };
+}
 
 export default useGameStore;
 
